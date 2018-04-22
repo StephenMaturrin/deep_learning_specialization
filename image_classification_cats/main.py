@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from  image_classification_cats.utils import *
+from  image_classification_cats.functions import *
 
 from image_classification_cats.lr_utils import load_dataset
 
