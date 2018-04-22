@@ -33,9 +33,8 @@ print ("test_set_y shape: " + str(test_set_y.shape))
 # Reshape the training and test examples
 
 ### START CODE HERE ### (≈ 2 lines of code)
-train_set_x_flatten = train_set_x_orig.reshape(num_px*num_px*train_set_x_orig.shape[3],train_set_x_orig.shape[0]).T
-test_set_x_flatten = test_set_x_orig.reshape(num_px*num_px*test_set_x_orig.shape[3],test_set_x_orig.shape[0]).T
-
+train_set_x_flatten = train_set_x_orig.reshape(train_set_x_orig.shape[0],num_px*num_px*train_set_x_orig.shape[3]).T
+test_set_x_flatten = test_set_x_orig.reshape(test_set_x_orig.shape[0],num_px*num_px*test_set_x_orig.shape[3]).T
 ### END CODE HERE ###
 
 print ("train_set_x_flatten shape: " + str(train_set_x_flatten.shape))
@@ -50,35 +49,5 @@ train_set_x = train_set_x_flatten/255.
 test_set_x = test_set_x_flatten/255.
 
 
-# GRADED FUNCTION: sigmoid
 
-
-
-
-# GRADED FUNCTION: initialize_with_zeros
-
-
-
-
-# GRADED FUNCTION: propagate
-
-
-print ("sigmoid([0, 2]) = " + str(sigmoid(np.array([0,2]))))
-
-dim = 2
-w, b = initialize_with_zeros(dim)
-print ("w = " + str(w))
-print ("b = " + str(b))
-
-w, b, X, Y = np.array([[1.],[2.]]), 2., np.array([[1.,2.,-1.],[3.,4.,-3.2]]), np.array([[1,0,1]])
-grads, cost = propagate(w, b, X, Y)
-print ("dw = " + str(grads["dw"]))
-print ("db = " + str(grads["db"]))
-print ("cost = " + str(cost))
-
-params, grads, costs = optimize(w, b, X, Y, num_iterations= 100, learning_rate = 0.009, print_cost = False)
-
-print ("w = " + str(params["w"]))
-print ("b = " + str(params["b"]))
-print ("dw = " + str(grads["dw"]))
-print ("db = " + str(grads["db"]))
+d = model(train_set_x, train_set_y, test_set_x, test_set_y, num_iterations = 2000, learning_rate = 0.005, print_cost = True)
