@@ -1,0 +1,87 @@
+from itertools import accumulate
+
+import tensorflow as tf
+import numpy as np
+from keras.datasets import mnist
+from tensorflow.examples.tutorials.mnist import input_data
+from tensorflow.contrib.layers import  fully_connected
+
+mnist = input_data.read_data_sets("./data/data")
+
+n_inputs = 28*28
+n_hidden1 = 300
+n_hidden2 = 100
+n_outputs = 10
+
+X = tf.placeholder(tf.float32, shape= (None, n_inputs), name ='X')
+Y = tf.placeholder(tf.int64, shape=(None), name= 'y')
+
+# The generated values follow a normal distribution with specified mean and standard deviation,
+# except that values whose magnitude
+# is more than 2 standard deviations from the mean are dropped and re-picked.
+# Returns: A tensor of the specified shape filled with random truncated normal values.
+
+
+
+def neuron_layer(X, n_neurons, name, activation = None):
+    with tf.name_scope(name):
+        n_inputs = int(X.get_shape()[1])
+        stddev = 2 / np.sqrt(n_inputs)
+        init = tf.truncated_normal((n_inputs, neuron_layer()), srddev = stddev)
+        W = tf.Variable(init, name='weights')
+        b = tf.Variable(tf.zeros([n_neurons]), name="biases")
+        z = tf.matmul(X,W) + b
+        if activation == "relu":
+                return tf.nn.relu(z)
+        else:
+            return z
+
+
+#
+# with tf.name_scope("dnn"):
+#
+#     hidden1 = neuron_layer(X,n_hidden1,"hidden1", activation= "relu")
+#     hidden2 = fully_connected(X, n_hidden2, scope="hidden2")
+#     logits =  fully_connected(hidden2, n_outputs, scope="outputs")
+#
+
+with tf.name_scope("dnn2"):
+
+    hidden1 = fully_connected(X,n_hidden1, scope= "hidden1")
+    hidden2 = fully_connected(hidden1, n_hidden2, scope="hidden2")
+    logits =  fully_connected(hidden2, n_outputs, scope="outputs",activation_fn=None)
+
+
+with tf.name_scope("lose"):
+    xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels= Y, logits=logits)
+    loss= tf.reduce_mean(xentropy, name="loss")
+
+
+learning_rate = 0.01
+
+with tf.name_scope("train"):
+    optimizer= tf.train.AdamOptimizer(learning_rate)
+    training_op= optimizer.minimize(loss)
+
+with tf.name_scope("eval"):
+    correct = tf.nn.in_top_k(logits, Y, 1)
+    accuracy = tf.reduce_mean ( tf.cast(correct,tf.float32))
+
+init = tf.global_variables_initializer()
+saver = tf.train.Saver()
+
+
+n_epochs= 400
+batch_size = 50
+
+with tf.Session() as sess :
+    init.run()
+    for epoch in range(n_epochs):
+        for iteration in range(mnist.train.num_examples // batch_size):
+            x_batch, y_batch = mnist.train.next_batch(batch_size)
+            sess.run(training_op, feed_dict={X: x_batch, Y: y_batch})
+        acc_train= accuracy.eval(feed_dict= {X: x_batch, Y: y_batch})
+        acc_test = accuracy.eval(feed_dict = {X : mnist.test.images,
+                                              Y : mnist.test.labels})
+        print("n_epoch:", epoch, "Train Accuracy:", acc_train, "Test accuracy:", acc_test)
+    save_path = saver.save(sess, "./checkpoint/model1_ckpt")
