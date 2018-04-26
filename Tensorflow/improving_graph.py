@@ -8,7 +8,7 @@ import pandas as pd
 import os
 
 now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-root_logdir = "/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/log"
+root_logdir = "./log"
 logdir = "{}/run-{}/".format(root_logdir, now)
 
 print(logdir)
