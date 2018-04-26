@@ -3,12 +3,15 @@ from keras import activations
 from tensorflow.contrib.layers.python.layers.initializers import xavier_initializer
 from  tensorflow.examples.tutorials.mnist import input_data
 from datetime import datetime
+import numpy as np
+import pandas as pd
+import os
 
 now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-root_logdir = "./log"
+root_logdir = "/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/log"
 logdir = "{}/run-{}/".format(root_logdir, now)
 
-
+print(logdir)
 mnist = input_data.read_data_sets("./data/data")
 
 
@@ -58,17 +61,16 @@ def train():
                 tf.summary.histogram('pre_activation_'+layer_name, preactivate)
             activation = activation_fn(preactivate)
             tf.summary.histogram('activation_'+layer_name, activation)
-            return activation
+            return weights, bias, activation
 
+    weights1, bias1, hidden1 = nn_layer(X,n_hidden_L1,500,'layer1')
 
-    hidden1 = nn_layer(X,n_hidden_L1,500,'layer')
     with tf.name_scope("dropout"):
         keep_prob = tf.placeholder(tf.float32)
         tf.summary.scalar("dropout_keep_probability", keep_prob)
         dropped = tf.nn.dropout(hidden1, keep_prob)
 
-
-    hypothesis = nn_layer(dropped,500,10,'layer2', activation_fn=tf.identity)
+    weights2, bias2,hypothesis = nn_layer(dropped,500,10,'layer2', activation_fn=tf.identity)
 
     with tf.name_scope('cross_entropy'):
         cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=Y, logits=hypothesis)
@@ -81,6 +83,7 @@ def train():
 
     with tf.name_scope("accuracy"):
         with tf.name_scope("correct_prediction"):
+            y_test= tf.arg_max(hypothesis,1)
             correct_prediction = tf.equal(tf.arg_max(hypothesis,1), Y)
         with tf.name_scope("accuracy"):
             accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
@@ -99,17 +102,24 @@ def train():
 
     def feed_dict(train):
         if train:
-            xs , ys = mnist.train.next_batch(100)
-            k = 0.5
+            xs , ys = mnist.train.next_batch(1100)
+            k = 1
         else:
             xs, ys = mnist.test.images, mnist.test.labels
             k = 1
         return {X: xs, Y : ys, keep_prob : k }
 
-    steps = 1000
+    steps = 10
     for i in range(steps):
+        #
+        # y_r, y_h=sess.run([Y,hypothesis], feed_dict=feed_dict(False))
+        # correct_prediction = tf.equal(tf.argmax(y_r[0], 1), tf.argmax(y_h[0], 1))
+        # print(tf.reduce_mean(tf.cast(correct_prediction, tf.float32)))
+
         if i % 10 ==0:
-            summary, acc = sess.run([merged,accuracy], feed_dict=feed_dict(False))
+            Y1,y_test1, summary, acc = sess.run([Y,y_test,merged,accuracy], feed_dict=feed_dict(False))
+            # print(Y1[0:10],y_test1[0:10])
+
             test_writer.add_summary(summary,i)
         else:
             if i % 100 == 99:
@@ -122,8 +132,25 @@ def train():
                 train_writer.add_run_metadata(run_metadata, 'step_%04d' % i)
                 train_writer.add_summary(summary,i)
             else:
-                summary, _ = sess.run([merged, train_step], feed_dict=feed_dict(True))
+                weights_1, bias_1, weights_2, bias_2,summary, _ = sess.run([weights1,bias1,weights2,bias2,merged, train_step], feed_dict=feed_dict(False))
                 train_writer.add_summary(summary,i)
+
+    weights_1, bias_1, weights_2, bias_2,= sess.run([weights1, bias1, weights2, bias2],
+                                                                feed_dict=feed_dict(False))
+
+    outdir = logdir+'Weights_Bias'
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+
+    w1= pd.DataFrame(data=weights_1.astype(float))
+    w1.to_csv(os.path.join(outdir, 'w1.csv'), sep=';', header=False, float_format='%.4f', index=False)
+    b1 = pd.DataFrame(data=bias_1.astype(float))
+    b1.to_csv(os.path.join(outdir, 'b1.csv'), sep=';', header=False, float_format='%.4f', index=False)
+    w2 = pd.DataFrame(data=weights_2.astype(float))
+    w2.to_csv(os.path.join(outdir, 'w2.csv'), sep=';', header=False, float_format='%.4f', index=False)
+    b2 = pd.DataFrame(data=bias_2.astype(float))
+    b2.to_csv(os.path.join(outdir, 'b2.csv'), sep=';', header=False, float_format='%.4f', index=False)
+    
     train_writer.close()
     test_writer.close()
 
