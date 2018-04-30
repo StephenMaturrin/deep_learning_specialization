@@ -1,0 +1,218 @@
+from itertools import accumulate
+from datetime import datetime
+import tensorflow as tf
+import numpy as np
+from keras.datasets import mnist
+from sklearn.tests.test_multioutput import n_outputs
+from tensorflow.examples.tutorials.mnist import input_data
+from tensorflow.contrib.layers import  fully_connected
+
+mnist = input_data.read_data_sets("./data/data")
+
+n_inputs = 28*28
+n_hidden1 = 300
+n_hidden2 = 100
+n_outputs = 10
+
+X = tf.placeholder(tf.float32, shape= (None, n_inputs), name ='X')
+Y = tf.placeholder(tf.int64, shape=(None), name= 'y')
+
+# The generated values follow a normal distribution with specified mean and standard deviation,
+# except that values whose magnitude
+# is more than 2 standard deviations from the mean are dropped and re-picked.
+# Returns: A tensor of the specified shape filled with random truncated normal values.
+
+
+
+def neuron_layer(X, n_neurons, name, activation = None):
+    with tf.name_scope(name):
+        n_inputs = int(X.get_shape()[1])
+        stddev = 2 / np.sqrt(n_inputs)
+        init = tf.truncated_normal((n_inputs, neuron_layer()), srddev = stddev)
+        W = tf.Variable(init, name='weights')
+        b = tf.Variable(tf.zeros([n_neurons]), name="biases")
+        z = tf.matmul(X,W) + b
+        if activation == "relu":
+                return tf.nn.relu(z)
+        else:
+            return z
+
+with tf.name_scope("layer1"):
+    W1 = tf.get_variable("W1", shape=[n_inputs, n_hidden1],
+                         initializer=tf.contrib.layers.xavier_initializer())
+    b1= tf.get_variable(initializer=tf.zeros([n_hidden1]), name = "bias_1")
+    layer1 =tf.add(tf.matmul(X, W1),b1)
+    layer1_act = tf.nn.relu(layer1)
+    tf.summary.histogram("bias_1", b1)
+    tf.summary.histogram("weights_1", W1)
+    tf.summary.histogram("layer_1", layer1)
+    tf.summary.histogram("activations_l1", layer1_act)
+
+
+with tf.name_scope("layer2"):
+    W2 = tf.get_variable("W2", shape=[n_hidden1, n_hidden2],
+                         initializer=tf.contrib.layers.xavier_initializer())
+    b2 = tf.get_variable(initializer=tf.zeros([n_hidden2]), name="bias_2")
+    layer2 = tf.add(tf.matmul(layer1_act, W2), b2)
+    layer2_act = tf.nn.relu(layer2)
+    tf.summary.histogram("bias_2", b2)
+    tf.summary.histogram("weights_2", W2)
+    tf.summary.histogram("layer_2", layer2)
+    tf.summary.histogram("activations_l2", layer1_act)
+
+
+
+
+with tf.name_scope("layer3"):
+    W3 = tf.get_variable("W3", shape=[n_hidden2, n_outputs],
+                         initializer=tf.contrib.layers.xavier_initializer())
+    b3 = tf.get_variable(initializer=tf.zeros([n_outputs]), name="bias_3")
+    layer3 = tf.add(tf.matmul(layer2_act, W3), b3)
+
+
+    hypothesis =tf.add(tf.matmul(layer2_act, W3),b3)
+
+    pred = tf.nn.softmax(hypothesis)
+
+    tf.summary.histogram("bias_3", b3)
+    tf.summary.histogram("weights_3", W3)
+    tf.summary.histogram("layer_3", hypothesis)
+
+
+#
+# with tf.name_scope("lose"):
+#     xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels= Y, logits=hypothesis)
+#     loss= tf.reduce_mean(xentropy)
+#     loss_sum = tf.summary.scalar('loss', loss)
+
+with tf.name_scope("loss"):
+    xentropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+    labels=Y, logits=hypothesis)
+    loss = tf.reduce_mean(xentropy, name="loss")
+    loss_sum = tf.summary.scalar('loss', loss)
+
+
+
+learning_rate = 0.01
+
+with tf.name_scope("train"):
+    learning_rate_tf = learning_rate
+    optimizer= tf.train.AdamOptimizer(learning_rate)
+    training_op= optimizer.minimize(loss)
+
+
+#
+with tf.name_scope("eval"):
+    correct = tf.nn.in_top_k(hypothesis, Y, 1)
+    # correct = tf.equal(tf.argmax(xentropy, 1), tf.argmax(Y, 1))
+    accuracy = tf.reduce_mean ( tf.cast(correct,tf.float32))
+
+
+#
+# with tf.name_scope("layer2"):
+#     W2 = tf.get_variable("W2", shape=[n_inputs, n_hidden1],
+#                          initializer=tf.contrib.layers.xavier_initializer())
+#
+#     b2_init = tf.get_variable("b2_init") tf.zeros([n_hidden1])
+#     layer2 = tf.add(tf.matmul(X, W2),b2_init)
+#
+#     layer2_act = tf.nn.relu(layer2)
+#     tf.summary.histogram("bias_2", b2_init)
+#     tf.summary.histogram("weights", W2)
+#     tf.summary.histogram("layer", layer2)
+#     tf.summary.histogram("activations", layer1_act)
+
+
+
+
+
+
+
+# with tf.name_scope("layer3"):
+#     W3 = tf.get_variable("W3", shape=[n_hidden2, n_outputs],
+#                          initializer=tf.contrib.layers.xavier_initializer())
+#     b2_init = tf.zeros([n_outputs])
+#     layer3 = tf.add(tf.matmul(X, W1),b2_init)
+#     # Qpred = tf.nn.softmax(tf.matmul(layer2_act, W3)) # Bug fixed: Qpred = tf.nn.softmax(tf.matmul(layer3, W4))
+#     tf.summary.histogram("weights", W3)
+#     # tf.summary.histogram("Qpred", Qpred)
+
+
+
+#
+# with tf.name_scope("dnn"):
+#
+#     hidden1 = neuron_layer(X,n_hidden1,"hidden1", activation= "relu")
+#     hidden2 = fully_connected(X, n_hidden2, scope="hidden2")
+#     logits =  fully_connected(hidden2, n_outputs, scope="outputs")
+#
+
+# with tf.name_scope("dnn2"):
+#
+#     hidden1 = fully_connected(X,n_hidden1, scope= "hidden1")
+#     hidden2 = fully_connected(hidden1, n_hidden2, scope="hidden2")
+#     logits =  fully_connected(hidden2, n_outputs, scope="outputs",activation_fn=None)
+
+
+
+
+now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+root_logdir = "./log"
+logdir = "{}/run-{}/".format(root_logdir, now)
+
+
+
+n_epochs= 10
+batch_size = 50
+# mse_summary = tf.summary.scalar('MSE', loss)
+
+with tf.Session() as sess:
+    init = tf.global_variables_initializer()
+    saver = tf.train.Saver()
+    merged = tf.summary.merge_all()
+    file_writer = tf.summary.FileWriter(logdir, tf.get_default_graph())
+    init.run()
+
+    step_f=0
+    for epoch in range(n_epochs):
+
+        for step in range(mnist.train.num_examples // batch_size):
+
+
+            x_batch, y_batch = mnist.train.next_batch(batch_size)
+            sess.run(training_op, feed_dict={X: x_batch, Y: y_batch})
+
+            step_f = epoch * epoch
+
+            if step % 2 == 0:
+
+                acc_train = accuracy.eval(feed_dict={X: x_batch, Y: y_batch})
+                acc_test = accuracy.eval(feed_dict={X: mnist.test.images,
+                                                    Y: mnist.test.labels})
+
+
+                summary_str = sess.run (merged,feed_dict={X: x_batch, Y: y_batch})
+                file_writer.add_summary(summary_str, step_f)
+
+
+
+
+        # acc_train= accuracy.eval(feed_dict= {X: x_batch, Y: y_batch})
+        # acc_test = accuracy.eval(feed_dict = {X : mnist.test.images,
+        #                                       Y : mnist.test.labels})
+        # print("n_epoch:", epoch, "Train Accuracy:", acc_train, "Test accuracy:", acc_test)
+    save_path = saver.save(sess, "./checkpoint/model2_ckpt")
+
+    print ('Optimization Finished!')
+
+    # correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
+    #
+    # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    #
+    # print("Accuracy:", accuracy.eval({x: mnist.test.images, y: mnist.test.labels}))
+    #
+
+
+
+    print("Start TensorBoard from your command line as follows:")
+    print("tensorboard --logdir=%s --port=" %logdir)
