@@ -1,0 +1,15 @@
+import tensorflow as tf
+import numpy as np
+from datetime import datetime
+import pandas as pd
+import os
+
+from  tensorflow.examples.tutorials.mnist import input_data
+
+
+mnist = input_data.read_data_sets("./data/data")
+
+
+model = NN_model(dataset= mnist,steps=200,batch_size=100,n_layer= [784,600,500,10],model="Log_Reg",learning_rate=0.01)
+
+model.run()
