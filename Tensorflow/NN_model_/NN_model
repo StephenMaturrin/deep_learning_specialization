@@ -3,7 +3,10 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 import os
-from ms255613_project.generic_functions import  get_logdir
+from project.generic_functions import  get_logdir
+import os
+from os import listdir
+from os.path import isfile, join
 
 
 class NN_model():
@@ -11,16 +14,17 @@ class NN_model():
     Y = tf.placeholder(tf.int64, shape= (None), name='Y')
     keep_prob = tf.placeholder(tf.float32)
 
-    def __init__(self, dataset, steps, batch_size, model,learning_rate, n_layer,logdir= "/ANN/log"):
+    def __init__(self, dataset, steps, batch_size, model,learning_rate, n_layer,activation_fn,metrics,logdir= "/ANN/log"):
             self.dataset= dataset
-            self.X = tf.placeholder(tf.float32,shape= (None,n_layer[0]), name='X')
+            self.X = tf.placeholder(tf.float64,shape= (None,n_layer[0]), name='X')
             self.n_layer=n_layer
             self.model = model
             self.logdir = get_logdir(logdir)
             self.learning_rate = learning_rate
             self.steps = steps
             self.batch_size= batch_size
-
+            self.metrics= metrics
+            self.activation_fn=activation_fn
 
 
 
@@ -72,7 +76,7 @@ class NN_model():
                 cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=self.Y, logits=hypothesis)
                 tf.summary.scalar("cross_entropy", cross_entropy)
             with tf.name_scope("train"):
-                train_step = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cross_entropy)
+                train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cross_entropy)
                 self.variables_summaries("loss", cross_entropy)
                 return train_step
         if (self.model == "Lin_Reg"):
@@ -106,40 +110,31 @@ class NN_model():
     def feed_dict(self,train):
 
         if train:
-            xs, ys = self.dataset.train.next_batch(1100)
-            k = 0.9
+            xs, ys = self.dataset.train.next_batch(1000)
+            k = 1
         else :
             xs, ys = self.dataset.test.images, self.dataset.test.labels
             k = 1
-
         return {self.X : xs, self.Y:ys, self.keep_prob: k }
 
 
-    def run(self):
-
+    def train(self):
 
         sess = tf.InteractiveSession()
-
-
-
-
         layers = {}                # activation_layer_1 = self.nn_layer(self.X, self.n_layer[0], self.n_layer[1], "layer_1", activation_fn= tf.nn.relu)
                                    # hypothesis = self.nn_layer(activation_layer_1, self.n_layer[1], self.n_layer[2], "layer_2", activation_fn= tf.identity)
 
-
-
         for index,l_ in enumerate(self.n_layer):
-
 
             if(index == len(self.n_layer)-2):
                 weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1), activation_fn=tf.identity)
                 layers.update({index+1 : {"weight":weight, "bias":bias ,"activation" : activation }})
                 break
             if (index == 0):
-                 weight, bias, activation = self.nn_layer(self.X, self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1),activation_fn=tf.nn.relu)
+                 weight, bias, activation = self.nn_layer(self.X, self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1),activation_fn=self.activation_fn)
                  layers.update({index+1 : {"weight": weight, "bias": bias, "activation" : activation }})
             else :
-                weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index + 1],"layer_" + str(index + 1), activation_fn=tf.nn.relu)
+                weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index + 1],"layer_" + str(index + 1), activation_fn=self.activation_fn)
                 layers.update({index + 1: {"weight": weight, "bias": bias, "activation" : activation}})
 
 
@@ -192,3 +187,37 @@ class NN_model():
         test_writer.close()
 
         print("tensorboard --logdir=%s --port=  " % self.logdir)
+
+    def test(self,dataset,path): # use W and B from train
+
+        sess = tf.InteractiveSession()
+        self.dataset = dataset
+
+        layers = os.listdir(path)
+
+
+        activations = []
+        for i in range(int(len(layers) / 2)):  # n° of layers = (#B+#W)/2
+            b = pd.read_csv(path + "/b" + str(i + 1) + ".csv", sep=";", header=None)
+            w = pd.read_csv(path + "/w" + str(i + 1) + ".csv", sep=";", header=None)
+
+            w_tf = tf.Variable(name="w" + str(i + 1), initial_value=w)
+            b_tf = tf.Variable(name="b" + str(i + 1), initial_value=b)
+            if i == 0:
+                pre_activation = tf.add(tf.matmul(self.X, w_tf), b_tf)
+                activations.append(self.activation_fn(pre_activation))
+            elif i == len(layers) - 1:
+                pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                activations.append(tf.identity(pre_activation))
+            else:
+                pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                activations.append(self.activation_fn(pre_activation))
+
+        tf.global_variables_initializer().run()
+
+
+        prediction = tf.equal(self.Y, tf.argmax(activations[-1], 1))
+        prediction_cast = tf.cast(prediction, tf.float32)
+        accur = tf.reduce_mean(prediction_cast)
+
+        print(sess.run([accur], feed_dict=self.feed_dict(False)))
