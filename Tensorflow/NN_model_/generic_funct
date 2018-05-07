@@ -1,0 +1,8 @@
+from datetime import datetime
+
+def  get_logdir (root_logdir):
+    now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    root_logdir =   root_logdir
+       
+    logdir = "{}/run-{}/".format(root_logdir, now)
+    return logdir

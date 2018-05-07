@@ -1,0 +1,28 @@
+import tensorflow as tf
+import numpy as np
+from datetime import datetime
+import pandas as pd
+import os
+from ms255613_project.generic_functions import  get_logdir
+from ms255613_project.Testing_things.create_nn_model import *
+from  tensorflow.examples.tutorials.mnist import input_data
+
+
+mnist = input_data.read_data_sets("./data/data")
+
+
+model = NN_model(dataset= mnist,
+                 steps=200,
+                 batch_size=100,
+                 n_layer= [784,600,500,10],
+                 model="Log_Reg",
+                 activation_fn=tf.nn.relu,
+                 learning_rate=0.01,
+                 metrics = True)
+
+model.run() #TRAIN
+path= "/ANN/log/run-20180503132952/Weights_Bias"
+model.test(dataset=mnist,path=path) #TEST
+
+
+

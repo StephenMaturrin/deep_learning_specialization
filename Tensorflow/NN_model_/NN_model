@@ -1,0 +1,223 @@
+import tensorflow as tf
+import numpy as np
+from datetime import datetime
+import pandas as pd
+import os
+from project.generic_functions import  get_logdir
+import os
+from os import listdir
+from os.path import isfile, join
+
+
+class NN_model():
+
+    Y = tf.placeholder(tf.int64, shape= (None), name='Y')
+    keep_prob = tf.placeholder(tf.float32)
+
+    def __init__(self, dataset, steps, batch_size, model,learning_rate, n_layer,activation_fn,metrics,logdir= "/ANN/log"):
+            self.dataset= dataset
+            self.X = tf.placeholder(tf.float64,shape= (None,n_layer[0]), name='X')
+            self.n_layer=n_layer
+            self.model = model
+            self.logdir = get_logdir(logdir)
+            self.learning_rate = learning_rate
+            self.steps = steps
+            self.batch_size= batch_size
+            self.metrics= metrics
+            self.activation_fn=activation_fn
+
+
+
+    def variables_summaries(self,name,var):
+        with tf.name_scope("summaries/"+name):
+            mean = tf.reduce_mean(var)
+            tf.summary.scalar("mean",mean)
+            with tf.name_scope("stddev"):
+                stddev = tf.sqrt(tf.reduce_mean(tf.square(var-mean)))  # stddev is used to quantify the amount of variation or dispersion of a set of data values
+                                                                       # A low standard deviation indicates that the data points tend to be close to the mean
+                                                                       # (also called the expected value) of the set, while a high standard deviation indicates
+                                                                       # that the data points are spread out over a wider range of values.
+            tf.summary.scalar("stddv_"+name,stddev)
+            tf.summary.scalar("max_"+name,tf.reduce_max(var))
+            tf.summary.scalar("min_"+name,tf.reduce_min(var))
+            tf.summary.histogram("h_"+name,var)
+
+
+    def nn_layer(self,input_tensor, input_dim, output_dim, layer_name, activation_fn= tf.nn.relu):
+
+        assert input_tensor.shape[1]==input_dim, "Check dimensions   %d != input_dim %d" % (input_tensor.shape[1],input_dim)
+
+        with tf.name_scope(layer_name):
+            with tf.name_scope("weights"):
+                weight = tf.get_variable("W_"+layer_name, shape=(input_dim,output_dim), initializer= tf.contrib.layers.xavier_initializer())
+                self.variables_summaries("Weight",weight)
+            with tf.name_scope("bias"):
+                bias = tf.Variable(tf.zeros(shape=(1,output_dim)),name="bias")
+                self.variables_summaries("Bias_"+layer_name,bias)
+            with tf.name_scope("pre_activation"):
+                pre_activation = tf.add(tf.matmul(input_tensor,weight),bias)
+                tf.summary.histogram("pre_activation",pre_activation)
+            with tf.name_scope("activation"):
+                activation= activation_fn(pre_activation)
+                tf.summary.histogram("activation", activation)
+        return weight, bias, activation
+
+    def droput(self,layer):
+        with tf.name_scope("dropout"):
+            tf.summary.scalar("k_droput",self.keep_prob)
+            dropped = tf.nn.dropout(layer,self.keep_prob)
+        return  dropped
+    
+
+    def loss_and_train (self, hypothesis):
+
+        if (self.model == "Log_Reg"):
+            with tf.name_scope('cross_entropy'):
+                cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=self.Y, logits=hypothesis)
+                tf.summary.scalar("cross_entropy", cross_entropy)
+            with tf.name_scope("train"):
+                train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cross_entropy)
+                self.variables_summaries("loss", cross_entropy)
+                return train_step
+        if (self.model == "Lin_Reg"):
+            with tf.name_scope("MSE"):
+                loss = tf.losses.mean_squared_error(labels=self.Y,predictions=hypothesis)
+                train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(loss)
+                tf.summary.scalar("loss",loss)
+                self.variables_summaries("loss",loss)
+                return train_step
+
+
+    def accuracy(self,hypothesis):
+        with tf.name_scope("accuracy"):
+            with tf.name_scope("correct_prediction"):
+
+                if (self.model == "Log_Reg"):
+
+                    correct_prediction = tf.equal(tf.argmax(hypothesis,1),self.Y)
+                    accuracy =  tf.reduce_mean(tf.cast(correct_prediction,tf.float32))
+                    tf.summary.scalar("accuracy", accuracy)
+                    return accuracy
+
+                if (self.model == "Lin_Reg"):
+                    correct_prediction = tf.subtract(self.Y,hypothesis)
+                    accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction,self.Y)),100) # Error prediction in %
+                    tf.summary.scalar("accuracy", accuracy)
+                    return accuracy
+
+
+
+    def feed_dict(self,train):
+
+        if train:
+            xs, ys = self.dataset.train.next_batch(1000)
+            k = 1
+        else :
+            xs, ys = self.dataset.test.images, self.dataset.test.labels
+            k = 1
+        return {self.X : xs, self.Y:ys, self.keep_prob: k }
+
+
+    def train(self):
+
+        sess = tf.InteractiveSession()
+        layers = {}                # activation_layer_1 = self.nn_layer(self.X, self.n_layer[0], self.n_layer[1], "layer_1", activation_fn= tf.nn.relu)
+                                   # hypothesis = self.nn_layer(activation_layer_1, self.n_layer[1], self.n_layer[2], "layer_2", activation_fn= tf.identity)
+
+        for index,l_ in enumerate(self.n_layer):
+
+            if(index == len(self.n_layer)-2):
+                weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1), activation_fn=tf.identity)
+                layers.update({index+1 : {"weight":weight, "bias":bias ,"activation" : activation }})
+                break
+            if (index == 0):
+                 weight, bias, activation = self.nn_layer(self.X, self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1),activation_fn=self.activation_fn)
+                 layers.update({index+1 : {"weight": weight, "bias": bias, "activation" : activation }})
+            else :
+                weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index + 1],"layer_" + str(index + 1), activation_fn=self.activation_fn)
+                layers.update({index + 1: {"weight": weight, "bias": bias, "activation" : activation}})
+
+
+
+        _hypothesis = layers[len(self.n_layer)-1]["activation"]
+        _accuracy=self.accuracy(_hypothesis)
+        _train_step = self.loss_and_train(_hypothesis)
+        tf.global_variables_initializer().run()
+
+        merged = tf.summary.merge_all()
+        train_writer = tf.summary.FileWriter(self.logdir + '/train', sess.graph)
+        test_writer = tf.summary.FileWriter(self.logdir + '/test', sess.graph)
+        for i in range(self.steps):
+            if i %  10 ==0:
+                summary, acc = sess.run([merged,_accuracy], feed_dict=self.feed_dict(False))
+                # _ = self.sess.run([__train_step],feed_dict=self.feed_dict(False))
+                test_writer.add_summary(summary,i)
+                print('Step n°',i, 'accuracy', acc)
+            else:
+                if i% 50==0:
+                    run_options= tf.RunOptions(trace_level = tf.RunOptions.Full_TRACE)
+                    run_metadata = tf.RunMetadata()
+                    summary, _ = sess.run([summary,_train_step], feed_dict=self.feed_dict(True), options= run_options, run_metadata= run_metadata)
+                    # _ = self.sess.run([__train_ste], feed_dict=self.feed_dict(False),options = run_options, run_metadata = run_metadata)
+                    train_writer.add_run_metadata(run_metadata,'step_%04d' % i )
+                    train_writer.add_summary(summary,i)
+                else:
+                    summary, _ = sess.run([merged, _train_step], feed_dict=self.feed_dict(True))
+                    train_writer.add_summary(summary, i)
+
+
+
+        outdir = self.logdir + 'Weights_Bias'
+        if not os.path.exists(outdir):
+            os.mkdir(outdir)
+
+
+
+        for index, value in enumerate(self.n_layer):
+            if index == len(self.n_layer)-1:
+                break
+            weight = layers[index+1]["weight"]
+            bias = layers[index+1]["bias"]
+            __weight,__bias = sess.run([weight,bias],feed_dict=self.feed_dict(False))
+            w = pd.DataFrame(data=__weight.astype(float))
+            w.to_csv(os.path.join(outdir, 'w'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
+            b = pd.DataFrame(data=__bias.astype(float))
+            b.to_csv(os.path.join(outdir, 'b'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
+        train_writer.close()
+        test_writer.close()
+
+        print("tensorboard --logdir=%s --port=  " % self.logdir)
+
+    def test(self,dataset,path): # use W and B from train
+
+        sess = tf.InteractiveSession()
+        self.dataset = dataset
+
+        layers = os.listdir(path)
+
+
+        activations = []
+        for i in range(int(len(layers) / 2)):  # n° of layers = (#B+#W)/2
+            b = pd.read_csv(path + "/b" + str(i + 1) + ".csv", sep=";", header=None)
+            w = pd.read_csv(path + "/w" + str(i + 1) + ".csv", sep=";", header=None)
+
+            w_tf = tf.Variable(name="w" + str(i + 1), initial_value=w)
+            b_tf = tf.Variable(name="b" + str(i + 1), initial_value=b)
+            if i == 0:
+                pre_activation = tf.add(tf.matmul(self.X, w_tf), b_tf)
+                activations.append(self.activation_fn(pre_activation))
+            elif i == len(layers) - 1:
+                pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                activations.append(tf.identity(pre_activation))
+            else:
+                pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                activations.append(self.activation_fn(pre_activation))
+
+        tf.global_variables_initializer().run()
+
+
+        prediction = tf.equal(self.Y, tf.argmax(activations[-1], 1))
+        prediction_cast = tf.cast(prediction, tf.float32)
+        accur = tf.reduce_mean(prediction_cast)
+
+        print(sess.run([accur], feed_dict=self.feed_dict(False)))
