@@ -114,7 +114,39 @@ class NN_model():
 
         return {self.X : xs, self.Y:ys, self.keep_prob: k }
 
+    def test(self,dataset,path): # use W and B from train
 
+            sess = tf.InteractiveSession()
+            self.dataset = dataset
+
+            layers = os.listdir(path)
+
+
+            activations = []
+            for i in range(int(len(layers) / 2)):  # n° of layers = (#B+#W)/2
+                b = pd.read_csv(path + "/b" + str(i + 1) + ".csv", sep=";", header=None)
+                w = pd.read_csv(path + "/w" + str(i + 1) + ".csv", sep=";", header=None)
+
+                w_tf = tf.Variable(name="w" + str(i + 1), initial_value=w)
+                b_tf = tf.Variable(name="b" + str(i + 1), initial_value=b)
+                if i == 0:
+                    pre_activation = tf.add(tf.matmul(self.X, w_tf), b_tf)
+                    activations.append(self.activation_fn(pre_activation))
+                elif i == len(layers) - 1:
+                    pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                    activations.append(tf.identity(pre_activation))
+                else:
+                    pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                    activations.append(self.activation_fn(pre_activation))
+
+            tf.global_variables_initializer().run()
+
+
+            prediction = tf.equal(self.Y, tf.argmax(activations[-1], 1))
+            prediction_cast = tf.cast(prediction, tf.float32)
+            accur = tf.reduce_mean(prediction_cast)
+
+            print(sess.run([accur], feed_dict=self.feed_dict(False)))
 
 
 
