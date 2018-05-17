@@ -25,7 +25,7 @@ class NN_model():
 
     keep_prob = tf.placeholder(tf.float32)
 
-    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate, n_layer,activation_fn,metrics,logdir= "/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/log"):
+    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate, n_layer,activation_fn,metrics,logdir= "./ANN/log"):
             self.dataset= dataset
             self.X = tf.placeholder(tf.float64,shape= (None,n_layer[0]), name='X')
             self.n_layer=n_layer
