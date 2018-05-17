@@ -1,0 +1,93 @@
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from ms255613_project import features_manager as fm
+from ms255613_project import normalize_functions as nf
+from ms255613_project import input_builder as ib
+from ms255613_project import constants  as c
+
+
+
+__version__ = "0.1.0"
+__status__ = "Project"
+
+############################## Description ##############################
+# This object tries to make a fast and manipulated dataset used to the train and test step.
+#
+###################################################################
+
+
+
+
+
+
+class Tmfl_datset ():
+
+    def __init__(self,):
+        self.training_examples = None
+        self.training_targets = None
+        self.validation_examples = None
+        self.validation_targets= None
+
+
+    def input_data(self,path_file):
+        TMFLT_F_dataset_original = pd.read_csv(path_file, sep=";", header=2)
+        pd.options.display.float_format = '{:.4f}'.format
+
+        TMFLT_F_dataset = pd.DataFrame(TMFLT_F_dataset_original.reindex(
+            np.random.permutation(TMFLT_F_dataset_original.index)))
+
+        dataset_features_normalized = fm.preprocess_features(TMFLT_F_dataset)
+        dataset_features_normalized_vdd = fm.preprocess_features(TMFLT_F_dataset)
+        dataset_features_normalized = nf.normalize_x_scale(dataset_features_normalized)
+        dies_selected, training_data, validation_data = ib.create_datasets(dataset_features_normalized, 4)
+
+        print("Dies for training:  %s" % training_data.Die.unique())
+        print("Dies for Validation:  %s" % validation_data.Die.unique())
+        print("Dies selected %s" % dies_selected)
+        validation_dataset_features_normalized = fm.preprocess_features(validation_data)
+
+
+        self.training_examples = training_data[c.FEATURES[2:len(c.FEATURES)]]
+        self.training_targets = training_data[c.TARGET]
+        self.validation_examples = validation_data[c.FEATURES[2:len(c.FEATURES)]]
+        self.validation_targets = validation_data[c.TARGET]
+
+        # print(self.training_examples.shape, self.training_targets.shape)
+
+    def get_train_dataset(self,batch_size,num_epochs):
+
+        training_input_fn = ib.my_input_fn_v2(self.training_examples,
+                                           self.training_targets["Fmax"],
+                                                   batch_size=batch_size,
+                                                   num_epochs=num_epochs,
+                                                   shuffle=True )
+
+
+        return training_input_fn
+
+    def get_test_dataset(self,num_epochs):
+        testing_input_fn =  ib.my_input_fn_v2(self.validation_examples,
+                                                   self.validation_targets["Fmax"],
+                                                           num_epochs=num_epochs,
+                                                           batch_size=self.validation_targets.shape[0],
+                                                           shuffle=False)
+
+
+        return testing_input_fn
+
+    def get_all_dataset(self):
+        all_input_fn = ib.my_input_fn(self.validation_examples,
+                                                             self.validation_targets["Fmax"],
+                                                             num_epochs=1,
+                                                             shuffle=False)
+        return all_input_fn
+
+
+
+    def test_data (self):
+        pass
+
+    def design_prediction (self):
+        pass
+
