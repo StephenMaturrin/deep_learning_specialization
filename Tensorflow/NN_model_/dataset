@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from ms255613_project import features_manager as fm
-from ms255613_project import normalize_functions as nf
-from ms255613_project import input_builder as ib
-from ms255613_project import constants  as c
+from project import features_manager as fm
+from project import normalize_functions as nf
+from project import input_builder as ib
+from project import constants  as c
 
 
 
