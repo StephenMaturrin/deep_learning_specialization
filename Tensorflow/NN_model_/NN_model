@@ -3,17 +3,13 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 import os
-from project.generic_functions import  get_logdir
+from _project.generic_functions import  get_logdir
 import os
 from os import listdir
 from os.path import isfile, join
+from matplotlib import pyplot as plt
 
-__author__ = "MS Jr."
-__credits__ = "MS Jr."
-__version__ = "0.1.2"
-__maintainer__ = "MS Jr."
-__email__ = "MS"
-__status__ = "Project"
+
 
 ############################## Description ##############################
 # This object implements not only the train and test step but also the the computational graph and the tensorboard.
@@ -25,7 +21,7 @@ class NN_model():
 
     keep_prob = tf.placeholder(tf.float32)
 
-    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate, n_layer,activation_fn,metrics,logdir= "./ANN/log"):
+    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate, n_layer,activation_fn,metrics,logdir= "/home/tmpext4/ANN/log"):
             self.dataset= dataset
             self.X = tf.placeholder(tf.float64,shape= (None,n_layer[0]), name='X')
             self.n_layer=n_layer
@@ -148,17 +144,25 @@ class NN_model():
         print( xs, ys)
         return {self.X: xs, self.Y: ys, self.keep_prob: k}
 
-    def feed_dict_v2(self,train_iterator, train):
+    def feed_dict_v2(self,train_iterator, train,all_test=False):
 
 
         if train:
             xs, ys = self.sess.run(train_iterator)
             k = 1
-        else:
+
+        elif(not all_test):
             xs, ys = self.sess.run(self.dataset.get_test_dataset(num_epochs=self.steps))
             k = 1
 
+        else:
+            xs, ys = self.sess.run(self.dataset.get_all_dataset())
+            k = 1
+
         return {self.X: xs, self.Y: ys, self.keep_prob: k}
+
+
+
 
 
     def train(self):
@@ -208,31 +212,35 @@ class NN_model():
 
 
         for i in range(self.steps):
-            if i %  999 ==0:
+            if i %  2999 ==0:
 
                 # summary, acc = sess.run([merged,_accuracy],feed_dict=self.feed_dict(False))
                 # train_writer.add_summary(summary, i)
                 summary, acc,__hypo = sess.run([merged,_accuracy,_hypothesis], feed_dict=self.feed_dict_v2(test_iterator, False))
-                test_writer.add_summary(summary,i)
+                # test_writer.add_summary(summary,i)
                 print('num_epochs n°',i, 'accuracy', acc)
                 # if i %  20 ==0:
                 #     print("Y",__Y.shape,"HYPO",__hypo.shape)
+            # else:
+            #     if i% 10000==0:
+            #         run_options= tf.RunOptions(trace_level = tf.RunOptions.FULL_TRACE)
+            #         run_metadata = tf.RunMetadata()
+            #         # summary, _,__loss = sess.run([merged,_train_step,_loss], feed_dict=self.feed_dict(True), options= run_options, run_metadata= run_metadata)
+            #         summary, _, __loss, ___Y,____hypothesis = sess.run([merged, _train_step, _loss, _Y, ___hypothesis], feed_dict=self.feed_dict_v2(test_iterator,True),options=run_options, run_metadata=run_metadata)
+            #         # print(___Y.shape, ____hypothesis.shape)
+            #         # _ = self.sess.run([__train_ste], feed_dict=self.feed_dict(False),options = run_options, run_metadata = run_metadata)
+            #         train_writer.add_run_metadata(run_metadata,'num_epochs_%04d' % i )
+            #         train_writer.add_summary(summary,i)
+            #         print("num_epochs n°:", i, "  LOSS:", np.sqrt(__loss))
             else:
-                if i% 1000==0:
-                    run_options= tf.RunOptions(trace_level = tf.RunOptions.FULL_TRACE)
-                    run_metadata = tf.RunMetadata()
-                    # summary, _,__loss = sess.run([merged,_train_step,_loss], feed_dict=self.feed_dict(True), options= run_options, run_metadata= run_metadata)
-                    summary, _, __loss, ___Y,____hypothesis = sess.run([merged, _train_step, _loss, _Y, ___hypothesis], feed_dict=self.feed_dict_v2(test_iterator,True),options=run_options, run_metadata=run_metadata)
-                    # print(___Y.shape, ____hypothesis.shape)
-                    # _ = self.sess.run([__train_ste], feed_dict=self.feed_dict(False),options = run_options, run_metadata = run_metadata)
-                    train_writer.add_run_metadata(run_metadata,'num_epochs_%04d' % i )
-                    train_writer.add_summary(summary,i)
-                    print("num_epochs n°:", i, "  LOSS:", np.sqrt(__loss))
-                else:
                     # for i in range(250):
-                    summary, _ = sess.run([merged, _train_step,], feed_dict=self.feed_dict_v2(train_iterator, True))
+                # summary, _ = sess.run([merged, _train_step,], feed_dict=self.feed_dict_v2(train_iterator, True))
+                _, __loss= sess.run([_train_step, _loss],feed_dict=self.feed_dict_v2(train_iterator, True))
+                if i % 3000 == 0:
+                        print("num_epochs n°:", i, "  LOSS:", np.sqrt(__loss))
+
                     # summary, _ = sess.run([merged, _train_step, ], feed_dict=self.feed_dict( True))
-                    train_writer.add_summary(summary, i)
+                    # train_writer.add_summary(summary, i)
 
 
 
@@ -287,15 +295,101 @@ class NN_model():
                 pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
                 activations.append(self.activation_fn(pre_activation))
 
+        all_iterator = self.dataset.get_all_dataset()
+
+
         tf.global_variables_initializer().run()
 
 
-        prediction = tf.equal(self.Y, tf.argmax(activations[-1], 1))
-        prediction_cast = tf.cast(prediction, tf.float32)
-        accur = tf.reduce_mean(prediction_cast)
-        test_iterator = self.dataset.get_test_dataset(num_epochs=self.steps)
-        print(sess.run([accur],self.feed_dict_v2(test_iterator, False)))
+        if (self.model == "Lin_Reg"):
 
-                                       
+            correct_prediction  = tf.subtract(self.Y, activations[-1])
+            accur = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, self.Y)), 100)  # Error prediction in %
+
+            _acc, _Y,_h = sess.run([accur,self.Y,activations[-1]], self.feed_dict_v2(all_iterator, False,True))
+
+            major_ticks = np.arange(min(_Y), max(_Y), 50)
+            minor_ticks = np.arange((min(_Y)), max(_Y), 150)
+            plt.xticks(minor_ticks)
+            plt.yticks(major_ticks)
+            plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+            plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+
+            plt.title(' Fmax  Prediction Vs Measured ')
+            plt.xlabel('Fmax  Measured')
+            plt.ylabel('Fmax Predicted')
+
+            plt.scatter(_Y, _h, marker='^')
+
+            plt.plot([_h.min(), _h.max()],
+                     [_h.min(), _h.max()], 'k--', lw=3)
+            plt.legend()
+            # And a corresponding grid
+
+            # Or if you want different settings for the grids:
+            plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+            plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+            plt.show()
+            print('mean accuracy = ',100-abs(_acc))
+
+
+        if( self.model == "Log_Reg"):
+            prediction = tf.equal(self.Y, tf.argmax(activations[-1], 1))
+            prediction_cast = tf.cast(prediction, tf.float32)
+            accur = tf.reduce_mean(prediction_cast)
+
+            print(sess.run([accur], self.feed_dict_v2(all_iterator, False,True)))
+
+    def predict(self, path,input_fn):
+
+
+
+        self.sess = tf.InteractiveSession()
+        sess =self.sess
+        self.dataset = input_fn
+
+        layers = os.listdir(path)
+
+
+        activations = []
+        for i in range(int(len(layers) / 2)):  # n° of layers = (#B+#W)/2
+            b = pd.read_csv(path + "/b" + str(i + 1) + ".csv", sep=";", header=None)
+            w = pd.read_csv(path + "/w" + str(i + 1) + ".csv", sep=";", header=None)
+
+            w_tf = tf.Variable(name="w" + str(i + 1), initial_value=w)
+            b_tf = tf.Variable(name="b" + str(i + 1), initial_value=b)
+            if i == 0:
+                pre_activation = tf.add(tf.matmul(self.X, w_tf), b_tf)
+                activations.append(self.activation_fn(pre_activation))
+            elif i == len(layers) - 1:
+                pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                activations.append(tf.identity(pre_activation))
+            else:
+                pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
+                activations.append(self.activation_fn(pre_activation))
+
+        # all_iterator = self.dataset.get_all_dataset()
+
+
+        tf.global_variables_initializer().run()
+
+
+        if (self.model == "Lin_Reg"):
+
+            correct_prediction  = tf.subtract(self.Y, activations[-1])
+            accur = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, self.Y)), 100)  # Error prediction in %
+            X, Y = sess.run(self.dataset)
+            _acc, _Y,_h = sess.run([accur,self.Y,activations[-1]],{self.X : X , self.Y: Y, self.keep_prob: 1})
+            print("accuracy", _acc)
+            return _h
+
+
+        if( self.model == "Log_Reg"):
+            prediction = tf.equal(self.Y, tf.argmax(activations[-1], 1))
+            prediction_cast = tf.cast(prediction, tf.float32)
+            accur = tf.reduce_mean(prediction_cast)
+
+            return prediction
+
 
 
