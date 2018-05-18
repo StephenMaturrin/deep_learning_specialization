@@ -12,8 +12,8 @@ from matplotlib import pyplot as plt
 
 
 ############################## Description ##############################
-# This object implements not only the train and test step but also the the computational graph and the tensorboard.
-#
+# This object implements not only the train, test and predict functions but also the the computational graph and the tensorboard. 
+# Notice that at the end of the train step the model save the weights and bias. 
 ###################################################################
 
 class NN_model():
