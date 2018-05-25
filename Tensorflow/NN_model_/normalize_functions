@@ -1,0 +1,60 @@
+from Project import  constants as c
+import numpy as np
+import pandas as pd
+
+
+ #Create a interface classe with these classes
+
+def linear_scale(series):
+  min_val = series.min()
+  max_val = series.max()
+  scale = (max_val - min_val) / 2.0
+  return series.apply(lambda x:((x - min_val) / scale) - 1.0)
+
+def z_score_normalize(series):
+  mean = series.mean()
+  std_dv = series.std()
+  return series.apply(lambda x:(x - mean) / std_dv)
+
+
+
+def get_quantile_based_boundaries(feature_values, num_buckets):
+  boundaries = np.arange(1.0, num_buckets) / num_buckets
+  quantiles = feature_values.quantile(boundaries)
+  return [quantiles[q] for q in quantiles.keys()]
+
+def feature_normalize(dataset):
+    mu = np.mean(dataset,axis=0)
+    sigma = np.std(dataset,axis=0)
+    return (dataset - mu)/sigma
+
+
+def min_max(dataset):
+    mu = np.mean(dataset,axis=0)
+    max_ = max(dataset)
+    min_ = min(dataset)
+    return (dataset - mu)/(max_-min_)
+
+
+def normalize_x_scale(dataframe):
+  """Normalize each columns of the dataset, this function accept a normalize function like argument (lambda : function()).
+
+      Args:
+        dataframe: pandas DataFrame of features
+        Normalize function: function to be implemented to normalize the dataset
+
+     Returns:
+          a version of the input `DataFrame` that has all its features normalized following the specified function.
+
+      """
+
+  processed_features = pd.DataFrame()
+
+  for feature in c.FEATURES:
+      if feature  in c.FEATURES[3:len(c.FEATURES)]:
+        processed_features[feature] = min_max(dataframe[feature])
+      else :
+          processed_features[feature] = dataframe[feature]
+
+  return processed_features
+
