@@ -3,17 +3,18 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 import os
-from _project.generic_functions import  get_logdir
+from project.generic_functions import  get_logdir
 import os
 from os import listdir
 from os.path import isfile, join
 from matplotlib import pyplot as plt
+from tensorflow.contrib.layers import batch_norm
 
 
 
 ############################## Description ##############################
-# This object implements not only the train, test and predict functions but also the the computational graph and the tensorboard. 
-# Notice that at the end of the train step the model save the weights and bias. 
+# This object implements not only the train and test step but also the the computational graph and the tensorboard.
+#
 ###################################################################
 
 class NN_model():
@@ -23,7 +24,7 @@ class NN_model():
 
     def __init__(self, dataset, num_epochs, batch_size, model,learning_rate, n_layer,activation_fn,metrics,logdir= "/home/tmpext4/ANN/log"):
             self.dataset= dataset
-            self.X = tf.placeholder(tf.float64,shape= (None,n_layer[0]), name='X')
+            self.X = tf.placeholder(tf.float64, shape=(None, n_layer[0]), name='X')
             self.n_layer=n_layer
             self.model = model
             self.logdir = get_logdir(logdir)
@@ -33,6 +34,22 @@ class NN_model():
             self.metrics= metrics
             self.activation_fn=activation_fn
             self.sess = None
+            self.keep_prob = tf.placeholder(tf.float32)
+
+            print (self.logdir)
+            if not os.path.exists(self.logdir):
+                os.mkdir(self.logdir)
+            # mdir = self.logdir
+            # print (mdir)
+
+            self.f = open(os.path.abspath(self.logdir) + "/model.txt", "a+")
+            # self.f = open(os.path.dirname(self.logdir)+ "model.txt", "w+")
+            self.f.write("model : " + self.model+ "\n")
+            self.f.write("n_layer : " + str(self.n_layer) +"\n")
+            self.f.write("learning_rate : " + str(self.learning_rate)+"\n")
+            self.f.write("num_epochs : " + str(self.batch_size)+"\n")
+            self.f.write("batch_siz : " + str(self.batch_size)+"\n")
+
 
 
 
@@ -40,6 +57,15 @@ class NN_model():
                 self.Y = tf.placeholder(tf.float64, shape=(None), name='Y')
             else:
                 self.Y = tf.placeholder(tf.int64, shape=(None), name='Y')
+
+
+            #Batch normalization
+            self.is_training = tf.placeholder(tf.bool, shape=(), name='is_training')
+            self.bn_params = {
+                'is_training': self.is_training,
+                'decay': 0.99,
+                'updates_collections': None
+            }
 
 
 
@@ -62,6 +88,8 @@ class NN_model():
 
     def nn_layer(self,input_tensor, input_dim, output_dim, layer_name, activation_fn= tf.nn.relu):
 
+        #iplement tf.nn.batch_normalization
+
         assert input_tensor.shape[1]==input_dim, "Check dimensions   %d != input_dim %d" % (input_tensor.shape[1],input_dim)
 
         with tf.name_scope(layer_name):
@@ -75,10 +103,17 @@ class NN_model():
                 self.variables_summaries("Bias_"+layer_name,bias)
             with tf.name_scope("pre_activation"):
                 pre_activation = tf.add(tf.matmul(input_tensor,weight),bias)
+
+
                 tf.summary.histogram("pre_activation",pre_activation)
             with tf.name_scope("activation"):
                 activation= activation_fn(pre_activation)
                 tf.summary.histogram("activation", activation)
+
+            with tf.name_scope("dropout_activation"):
+                activation = activation_fn(pre_activation)
+                tf.summary.histogram("activation", activation)
+
         return weight, bias, activation
 
     def droput(self,layer):
@@ -102,13 +137,15 @@ class NN_model():
             with tf.name_scope("MSE"):
                 # loss = tf.losses.mean_squared_error(labels=self.Y, predictions=hypothesis)
                 # aux = (hypothesis-self.Y)
-                cost = tf.reduce_mean(tf.square(hypothesis-self.Y))
-                tf.summary.scalar("loss", cost)
+                loss = tf.reduce_mean(tf.square(hypothesis-self.Y))
+                reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+                loss_l1 = tf.add_n([loss] + reg_losses, name="loss")
+                tf.summary.scalar("loss", loss_l1)
             with tf.name_scope("train"):
                 train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.899).minimize(cost)
-                tf.summary.scalar("loss",cost)
-                self.variables_summaries("loss",cost)
-                return train_step,cost,self.Y,hypothesis
+                tf.summary.scalar("loss",loss_l1)
+                self.variables_summaries("loss",loss_l1)
+                return train_step,loss_l1,self.Y,hypothesis
 
 
     def accuracy(self,hypothesis):
@@ -212,7 +249,7 @@ class NN_model():
 
 
         for i in range(self.steps):
-            if i %  2999 ==0:
+            if i %  1000 ==0:
 
                 # summary, acc = sess.run([merged,_accuracy],feed_dict=self.feed_dict(False))
                 # train_writer.add_summary(summary, i)
@@ -236,16 +273,15 @@ class NN_model():
                     # for i in range(250):
                 # summary, _ = sess.run([merged, _train_step,], feed_dict=self.feed_dict_v2(train_iterator, True))
                 _, __loss= sess.run([_train_step, _loss],feed_dict=self.feed_dict_v2(train_iterator, True))
-                if i % 3000 == 0:
+                if i % 9999 == 0:
                         print("num_epochs n°:", i, "  LOSS:", np.sqrt(__loss))
 
                     # summary, _ = sess.run([merged, _train_step, ], feed_dict=self.feed_dict( True))
                     # train_writer.add_summary(summary, i)
 
-
-
-
-
+        self.f.write("Loss :" + str(__loss))
+        self.f.write("Loss :" + str(acc))
+        self.f.close()
 
         outdir = self.logdir + 'Weights_Bias'
         if not os.path.exists(outdir):
@@ -264,6 +300,9 @@ class NN_model():
             w.to_csv(os.path.join(outdir, 'w'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
             b = pd.DataFrame(data=__bias.astype(float))
             b.to_csv(os.path.join(outdir, 'b'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
+
+
+
         train_writer.close()
         test_writer.close()
 
