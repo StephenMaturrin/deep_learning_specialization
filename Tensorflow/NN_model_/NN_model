@@ -3,19 +3,14 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 import os
-from ms255613_project.generic_functions import  get_logdir
+from project.generic_functions import  get_logdir
 import os
 from os import listdir
 from os.path import isfile, join
 from matplotlib import pyplot as plt
 from tensorflow.contrib.layers import batch_norm
 
-__author__ = "Miguel Solinas Jr."
-__credits__ = "Miguel Solinas Jr."
-__version__ = "0.1.1"
-__maintainer__ = "Miguel Solinas Jr."
-__email__ = "migue.solinas@gmail.com"
-__status__ = "Project"
+
 
 ############################## Description ##############################
 # This object implements not only the train and test step but also the the computational graph and the tensorboard.
@@ -27,7 +22,7 @@ class NN_model():
     #
     # keep_prob = tf.placeholder(tf.float64)
 
-    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,metrics,optimizer, dropout, logdir= "/home/tmpext4/ms255613/ANN/log"):
+    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,metrics,optimizer, dropout, logdir= "/home/tmpext4/ANN/log"):
             self.dataset= dataset
             self.X = tf.placeholder(tf.float64, shape=(None, n_layer[0]), name='X')
             self.n_layer=n_layer
@@ -400,7 +395,7 @@ class NN_model():
 
             print(sess.run([accur], self.feed_dict_v2(all_iterator, False,True)))
 
-    def predict(self, path,input_fn):
+    def predict(self, path,input_fn,pruning):
 
 
 
@@ -418,8 +413,17 @@ class NN_model():
 
             # if i ==2:
             #Prunning
-            # print("W : ", i + 1, "  ", w[np.abs(w) < 0.005].count().sum())
-            # w[np.abs(w) < 0.005] = 0
+            if pruning:
+                print("W : ", i + 1, "  ", w[np.abs(w) < 0.001].count().sum())
+                w[np.abs(w) < 0.001] = 0
+                outdir = path + 'sparse'
+                if not os.path.exists(outdir):
+                    os.mkdir(outdir)
+
+                w.to_csv(os.path.join(outdir, 'w' + str(i + 1) + '.csv'), sep=';', header=False, float_format='%.4f',
+                         index=False)
+
+
 
 
             w_tf = tf.Variable(name="w" + str(i + 1), initial_value=w)
