@@ -3,13 +3,19 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 import os
-from project.generic_functions import  get_logdir
+from ms255613_project.generic_functions import  get_logdir
 import os
 from os import listdir
 from os.path import isfile, join
 from matplotlib import pyplot as plt
 from tensorflow.contrib.layers import batch_norm
 
+__author__ = "Miguel Solinas Jr."
+__credits__ = "Miguel Solinas Jr."
+__version__ = "0.1.1"
+__maintainer__ = "Miguel Solinas Jr."
+__email__ = "migue.solinas@gmail.com"
+__status__ = "Project"
 
 ############################## Description ##############################
 # This object implements not only the train and test step but also the the computational graph and the tensorboard.
@@ -21,7 +27,7 @@ class NN_model():
     #
     # keep_prob = tf.placeholder(tf.float64)
 
-    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,metrics,optimizer, dropout, logdir= "/home/tmpext4/ANN/log"):
+    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,metrics,optimizer, dropout, logdir= "/home/tmpext4/ms255613/ANN/log"):
             self.dataset= dataset
             self.X = tf.placeholder(tf.float64, shape=(None, n_layer[0]), name='X')
             self.n_layer=n_layer
@@ -92,9 +98,6 @@ class NN_model():
 
         with tf.name_scope(layer_name):
             with tf.name_scope("weights"):
-            
-            
-            
 
                 weight = tf.get_variable("W_"+layer_name, shape=(input_dim,output_dim), initializer= tf.glorot_uniform_initializer(),dtype=tf.float64)
                 self.variables_summaries("Weight",weight)
@@ -121,7 +124,7 @@ class NN_model():
 
     
 
-    def loss_and_train (self, hypothesis):
+    def loss_and_train (self, hypothesis,weights):
 
         if (self.model == "Log_Reg"):
             with tf.name_scope('cross_entropy'):
@@ -135,15 +138,25 @@ class NN_model():
             with tf.name_scope("MSE"):
                 # loss = tf.losses.mean_squared_error(labels=self.Y, predictions=hypothesis)
                 # aux = (hypothesis-self.Y)
-                loss_l1 = tf.reduce_mean(tf.square(hypothesis-self.Y))
+                loss = tf.reduce_mean(tf.square(hypothesis-self.Y))
                 # reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
                 # loss_l1 = tf.add_n([loss] + reg_losses, name="loss")
-                tf.summary.scalar("loss", loss_l1)
+                tf.summary.scalar("loss", loss)
             with tf.name_scope("train"):
-                # train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.899).minimize(loss_l1)
+
+                reg_aux= 0
+                for w in weights:
+                    reg_aux = reg_aux +  tf.nn.l2_loss(w)
+
+
+
+                loss_l1 = tf.reduce_mean(loss + reg_aux * 0.9)
+
+                train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.899).minimize(loss_l1)
+
                 # train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.899).minimize(loss_l1)
 
-                train_step = tf.train.FtrlOptimizer(learning_rate=self.learning_rate, l1_regularization_strength=1,l2_regularization_strength=0.5).minimize(loss_l1)
+                # train_step = tf.train.FtrlOptimizer(learning_rate=self.learning_rate, l1_regularization_strength=1,l2_regularization_strength=0.5).minimize(loss_l1)
                 tf.summary.scalar("loss",loss_l1)
                 self.variables_summaries("loss",loss_l1)
                 return train_step,loss_l1,self.Y,hypothesis
@@ -222,18 +235,21 @@ class NN_model():
 
         layers = {}                # activation_layer_1 = self.nn_layer(self.X, self.n_layer[0], self.n_layer[1], "layer_1", activation_fn= tf.nn.relu)
                                    # hypothesis = self.nn_layer(activation_layer_1, self.n_layer[1], self.n_layer[2], "layer_2", activation_fn= tf.identity)
-
+        weights = []
         for index,l_ in enumerate(self.n_layer):
 
             if(index == len(self.n_layer)-2):
                 weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1), activation_fn=tf.identity)
+                weights.append(weight)
                 layers.update({index+1 : {"weight":weight, "bias":bias ,"activation" : activation }})
                 break
             if (index == 0):
                  weight, bias, activation = self.nn_layer(self.X, self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1),activation_fn=self.activation_fn)
+                 weights.append(weight)
                  layers.update({index+1 : {"weight": weight, "bias": bias, "activation" : activation }})
             else :
                 weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index + 1],"layer_" + str(index + 1), activation_fn=self.activation_fn)
+                weights.append(weight)
                 layers.update({index + 1: {"weight": weight, "bias": bias, "activation" : activation}})
 
 
@@ -241,7 +257,7 @@ class NN_model():
         _hypothesis = layers[len(self.n_layer)-1]["activation"]
         _accuracy=self.accuracy(_hypothesis)
         # rain_step, cost, self.Y, hypothesis
-        _train_step,_loss, _Y, ___hypothesis = self.loss_and_train(_hypothesis)
+        _train_step,_loss, _Y, ___hypothesis = self.loss_and_train(_hypothesis,weights)
         tf.global_variables_initializer().run()
 
         merged = tf.summary.merge_all()
@@ -402,8 +418,8 @@ class NN_model():
 
             # if i ==2:
             #Prunning
-            print("W : ", i + 1, "  ", w[np.abs(w) < 0.005].count().sum())
-            w[np.abs(w) < 0.005] = 0
+            # print("W : ", i + 1, "  ", w[np.abs(w) < 0.005].count().sum())
+            # w[np.abs(w) < 0.005] = 0
 
 
             w_tf = tf.Variable(name="w" + str(i + 1), initial_value=w)
