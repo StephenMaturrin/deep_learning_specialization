@@ -1,0 +1,169 @@
+import tensorflow as tf
+import numpy as np
+from datetime import datetime
+import pandas as pd
+import os
+#
+from project.Testing_things.tmfl_data import Tmfl_datset
+
+from ms255613_project.generic_functions import get_logdir
+from ms255613_project.Testing_things.create_nn_model import *
+from  tensorflow.examples.tutorials.mnist import input_data
+
+from ms255613_project import input_builder as ib
+from ms255613_project import constants  as c
+from ms255613_project import features_manager as fm
+from ms255613_project import normalize_functions as nf
+from ms255613_project import Regressor as R
+from ms255613_project import data_visualization as dv
+import pandas as pd
+
+acc2 = 0.5
+acc1 = 0
+
+dataset = Tmfl_datset()
+dataset.input_data(path_file="/home/ANN/input_data/test2.csv")
+for i in range (10000):
+
+
+
+    sensors = []
+    sensor = np.random.randint(2, len(c.FEATURES))
+    sensors.append(c.FEATURES[sensor])
+
+
+
+    tf.reset_default_graph()
+
+
+    sess = tf.Session()
+
+
+    n_layer=[len(sensors),26,26,26,1]
+
+    num_epochs=10000  # n° repetition
+    batch_size=250  # n° input entries
+
+    model="Lin_Reg"
+    activation_fn=tf.nn.relu
+    learning_rate=0.001
+
+    # results = [int(i) for i in n_layer]
+
+
+
+    def feed_dict_v2(train, features2, all_test=False):
+        if train:
+            xs, ys = sess.run(
+                dataset.get_train_dataset(batch_size=batch_size, num_epochs=num_epochs, features2=features2))
+
+
+
+        elif (not all_test):
+            xs, ys = sess.run(dataset.get_test_dataset(num_epochs=num_epochs, features2=features2))
+
+
+        else:
+            xs, ys = sess.run(dataset.get_all_dataset(), features2=features2)
+
+
+        return {X: xs, Y: ys}
+
+
+    X = tf.placeholder(tf.float32, shape=(None, n_layer[0]), name='X')
+    Y = tf.placeholder(tf.float32, shape=(None), name='Y')
+
+
+    # First layer of weights
+
+    W1 = tf.get_variable("W1", shape=[n_layer[0],n_layer[1]],
+                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+    b1= tf.Variable(tf.zeros(shape=(1, n_layer[1])), name="b1")
+    b1 = tf.cast(b1, tf.float32)
+    layer1= tf.add(tf.matmul(X,W1 ),b1)
+    layer1_act = activation_fn(layer1)
+
+    # Second layer of weights
+
+    W2 = tf.get_variable("W2", shape=[n_layer[1], n_layer[2]],
+                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+    b2= tf.Variable(tf.zeros(shape=(1, n_layer[2])), name="b2")
+    b2 = tf.cast(b2, tf.float32)
+    layer2= tf.add(tf.matmul(layer1,W2 ),b2)
+    layer2_act = activation_fn(layer2)
+
+    # Third layer of weights
+
+    W3 = tf.get_variable("W3", shape=[n_layer[2], n_layer[3]],
+                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+    b3= tf.Variable(tf.zeros(shape=(1, n_layer[3])), name="b3")
+    b3 = tf.cast(b3, tf.float32)
+    layer3= tf.add(tf.matmul(layer2,W3 ),b3)
+    layer3_act = activation_fn(layer3)
+
+    # Fourth layer of weights
+
+    W4 = tf.get_variable("W4", shape=[n_layer[3], n_layer[1]],
+                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+    b4= tf.Variable(tf.zeros(shape=(1, n_layer[4])), name="b4")
+    b4 = tf.cast(b4, tf.float32)
+    layer4= tf.add(tf.matmul(layer2,W3 ),b3)
+
+    loss = tf.reduce_mean(tf.square(layer4-Y))
+
+    train_step=tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9, beta2=0.899).minimize(loss)
+
+    #Accuracy
+    correct_prediction = tf.subtract(Y, layer4)
+    accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, Y)), 100)  # Error prediction in %
+    accuracy = 1 - accuracy
+
+
+
+    # We need to define the parts of the network needed for learning a policy
+
+
+    train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
+    tf.global_variables_initializer().run(session=sess)
+    for i in range(num_epochs):
+
+
+
+        _= sess.run([train_step], feed_dict=feed_dict_v2(True, features2=sensors))
+        if i%100==0:
+            acc1, hypo = sess.run([accuracy, layer4], feed_dict=feed_dict_v2(False, features2=sensors))
+            print("epoch_N°: _",i," accuracy : ",acc1)
+
+
+
+    sess.close()
+
+
+
+
+
+    if (acc1 > acc2):
+        acc2 = acc1
+
+        while True:
+            sensor = np.random.randint(2, len(c.FEATURES))
+            if c.FEATURES[sensor] not in sensors:
+                break
+        sensors.append(c.FEATURES[sensor])
+
+    else:
+        # if(len(sensors)>1):
+        #     sensors.pop()
+        # else:
+        sensors.pop()
+
+        while True:
+            sensor = np.random.randint(2, len(c.FEATURES))
+            if c.FEATURES[sensor] not in sensors:
+                break
+        sensors.append(c.FEATURES[sensor])
+
+    print(sensors)
+
+
+
