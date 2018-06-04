@@ -150,7 +150,7 @@ for i in range (9999999):
 
 
 
-        acc1=np.abs(acc1)
+   acc1=np.abs(acc1)
 
 
         sess.close()
@@ -172,7 +172,8 @@ for i in range (9999999):
         else:
             if(len(sensors)>0):
                 sensors.pop()
-
+            elif np.random.rand() > 0.9:
+                sensors.pop(np.random.randint(0, len(sensors)))
 
 
             while True:
@@ -181,7 +182,7 @@ for i in range (9999999):
                     break
             sensors.append(c.FEATURES[sensor])
 
-        sensor = np.random.randint(2, len(c.FEATURES))
+
 
         print(sensors)
     #
