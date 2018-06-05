@@ -4,187 +4,215 @@ from datetime import datetime
 import pandas as pd
 import os
 #
-from project.Testing_things.tmfl_data import Tmfl_datset
-# from project.boosting_regression import by_die_predictions
-from project.generic_functions import get_logdir
-from project.Testing_things.create_nn_model import *
+from ms255613_project.Testing_things.tmfl_data import Tmfl_datset
+# from ms255613_project.boosting_regression import by_die_predictions
+from ms255613_project.generic_functions import get_logdir
+from ms255613_project.Testing_things.create_nn_model import *
 from  tensorflow.examples.tutorials.mnist import input_data
 
-from project import input_builder as ib
-from project import constants  as c
-from project import features_manager as fm
-from project import normalize_functions as nf
-from project import Regressor as R
-from project import data_visualization as dv
+from ms255613_project import input_builder as ib
+from ms255613_project import constants  as c
+from ms255613_project import features_manager as fm
+from ms255613_project import normalize_functions as nf
+from ms255613_project import Regressor as R
+from ms255613_project import data_visualization as dv
 import pandas as pd
 
 acc2 = 90
 acc1 = 0
 
+accurate = {}
+accuracy_per_feature = np.array([])
+features_not_used_list = []
+features_already_used_list = []
 dataset = Tmfl_datset()
-dataset.input_data(path_file="/input_data/test2.csv")
+dataset.input_data(path_file="/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/input_data/test2.csv")
 sensors = []
 
-num_epochs = 30000  # n° repetition
+num_epochs = 100  # n° repetition
 batch_size = 250  # n° input entries
 
 model = "Lin_Reg"
 activation_fn = tf.nn.elu
 learning_rate = 0.001
+iteration = 3
+
 
 def feed_dict_v3(train_iterator, train, all_test=False):
     if train:
         xs, ys = sess.run(train_iterator)
-        k = 1
 
     elif (not all_test):
-        xs, ys =sess.run(train_iterator)
-        k = 1
+        xs, ys = sess.run(train_iterator)
+
 
     else:
         xs, ys = sess.run(dataset.get_all_dataset())
-        k = 1
 
-    return {X: xs, Y: ys }
+    return {X: xs, Y: ys}
 
 
 sensor = np.random.randint(2, len(c.FEATURES))
 sensors.append(c.FEATURES[sensor])
 
 
+for i in range(features_not_used_list):
+    print("i", i)
 
-for i in range (9999999):
-
-    tf.reset_default_graph()
-
-
-    # sess = tf.Session()
-    # sess = tf.Session(config=tf.ConfigProto(
-    #     intra_op_parallelism_threads=8))
-
-
-    n_layer=[len(sensors),26,26,26,1]
-
-
-
-    # results = [int(i) for i in n_layer]
-
-
-
+    accuracy_per_feature.clear()
+    sensors.clear()
+    sensors.append(i)
+    sensors += features_already_used_list
+    n_layer = [len(sensors), 26, 26, 26, 1]
 
     X = tf.placeholder(tf.float32, shape=(None, n_layer[0]), name='X')
     Y = tf.placeholder(tf.float32, shape=(None), name='Y')
 
+    for j in range(iteration):
+        tf.reset_default_graph()
 
-    # First layer of weights
+        # sess = tf.Session()
+        # sess = tf.Session(config=tf.ConfigProto(
+        #     intra_op_parallelism_threads=8))
+        # results = [int(i) for i in n_layer]
 
-    W1 = tf.get_variable("W1", shape=[n_layer[0],n_layer[1]],
-                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
-    b1= tf.Variable(tf.zeros(shape=(1, n_layer[1])), name="b1")
-    # b1 = tf.cast(b1, tf.float32)
-    layer1= tf.add(tf.matmul(X,W1 ),b1)
-    layer1_act = activation_fn(layer1)
+        # First layer of weights
 
-    # Second layer of weights
+        W1 = tf.get_variable("W1", shape=[n_layer[0], n_layer[1]],
+                             initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+        b1 = tf.Variable(tf.zeros(shape=(1, n_layer[1])), name="b1")
+        # b1 = tf.cast(b1, tf.float32)
+        layer1 = tf.add(tf.matmul(X, W1), b1)
+        layer1_act = activation_fn(layer1)
 
-    W2 = tf.get_variable("W2", shape=[n_layer[1], n_layer[2]],
-                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
-    b2= tf.Variable(tf.zeros(shape=(1, n_layer[2])), name="b2")
-    b2 = tf.cast(b2, tf.float32)
-    layer2= tf.add(tf.matmul(layer1,W2 ),b2)
-    layer2_act = activation_fn(layer2)
+        # Second layer of weights
 
-    # Third layer of weights
+        W2 = tf.get_variable("W2", shape=[n_layer[1], n_layer[2]],
+                             initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+        b2 = tf.Variable(tf.zeros(shape=(1, n_layer[2])), name="b2")
+        b2 = tf.cast(b2, tf.float32)
+        layer2 = tf.add(tf.matmul(layer1, W2), b2)
+        layer2_act = activation_fn(layer2)
 
-    W3 = tf.get_variable("W3", shape=[n_layer[2], n_layer[3]],
-                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
-    b3= tf.Variable(tf.zeros(shape=(1, n_layer[3])), name="b3")
-    # b3 = tf.cast(b3, tf.float32)
-    layer3= tf.add(tf.matmul(layer2,W3 ),b3)
-    layer3_act = activation_fn(layer3)
+        # Third layer of weights
 
-    # Fourth layer of weights
+        W3 = tf.get_variable("W3", shape=[n_layer[2], n_layer[3]],
+                             initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+        b3 = tf.Variable(tf.zeros(shape=(1, n_layer[3])), name="b3")
+        # b3 = tf.cast(b3, tf.float32)
+        layer3 = tf.add(tf.matmul(layer2, W3), b3)
+        layer3_act = activation_fn(layer3)
 
-    W4 = tf.get_variable("W4", shape=[n_layer[3], n_layer[1]],
-                         initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
-    b4= tf.Variable(tf.zeros(shape=(1, n_layer[4])), name="b4")
-    # b4 = tf.cast(b4, tf.float32)
-    layer4= tf.add(tf.matmul(layer2,W3 ),b3)
+        # Fourth layer of weights
 
-    loss = tf.reduce_mean(tf.square(layer4-Y))
+        W4 = tf.get_variable("W4", shape=[n_layer[3], n_layer[1]],
+                             initializer=tf.glorot_uniform_initializer(), dtype=tf.float32)
+        b4 = tf.Variable(tf.zeros(shape=(1, n_layer[4])), name="b4")
+        # b4 = tf.cast(b4, tf.float32)
+        layer4 = tf.add(tf.matmul(layer2, W3), b3)
 
-    train_step=tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9, beta2=0.899).minimize(loss)
-    # train_step = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss)
-    #Accuracy
-    correct_prediction = tf.subtract(Y, layer4)
-    accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, Y)), 100)  # Error prediction in %
-    accuracy2 =  100 - np.abs(accuracy)
+        loss = tf.reduce_mean(tf.square(layer4 - Y))
 
+        train_step = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9, beta2=0.899).minimize(loss)
+        # train_step = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss)
+        # Accuracy
+        correct_prediction = tf.subtract(Y, layer4)
+        accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, Y)), 100)  # Error prediction in %
+        accuracy2 = 100 - np.abs(accuracy)
 
-    # We need to define the parts of the network needed for learning a policy
-    # tf.global_variables_initializer().run(session=sess)
-
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        train_iterator = dataset.get_train_dataset(batch_size=batch_size, num_epochs=num_epochs,features=sensors)
-        test_iterator = dataset.get_test_dataset(num_epochs=num_epochs,features=sensors)
-
-        for i in range(num_epochs):
-            # if i % 10 == 0 :print(i)
-
-            # xs, ys = sess.run(dataset.get_train_dataset(batch_size=batch_size, num_epochs=num_epochs, features=sensors))
+        # We need to define the parts of the network needed for learning a policy
+        # tf.global_variables_initializer().run(session=sess)
 
 
 
-            # _= sess.run([train_step], feed_dict={X: xs,Y: ys})
-            _ = sess.run([train_step], feed_dict=feed_dict_v3(train_iterator, True))
-            # summary, _, __loss = sess.run([merged, _train_step, _loss],feed_dict=self.feed_dict_v3(train_iterator, True))
+
+
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            train_iterator = dataset.get_train_dataset(batch_size=batch_size, num_epochs=num_epochs, features=sensors)
+            test_iterator = dataset.get_test_dataset(num_epochs=num_epochs, features=sensors)
+
+            for h in range(num_epochs):
+                # if i % 10 == 0 :print(i)
+
+                # xs, ys = sess.run(dataset.get_train_dataset(batch_size=batch_size, num_epochs=num_epochs, features=sensors))
+
+
+
+                # _= sess.run([train_step], feed_dict={X: xs,Y: ys})
+                _ = sess.run([train_step], feed_dict=feed_dict_v3(train_iterator, True))
+                # summary, _, __loss = sess.run([merged, _train_step, _loss],feed_dict=self.feed_dict_v3(train_iterator, True))
 
 
                 # xs, ys = sess.run(dataset.get_test_dataset(num_epochs=num_epochs, features=sensors))
                 # acc1, hypo = sess.run([accuracy2, layer4], feed_dict={X: xs, Y: ys})
-            acc1 = sess.run([accuracy2], feed_dict=feed_dict_v3(test_iterator, False))
-            # print(acc)
+                acc1 = sess.run([accuracy2], feed_dict=feed_dict_v3(test_iterator, False))
+                # print(acc)
 
-            if i % 1000 == 0: print("Sensors", sensors, "epoch_N°: _",i," accuracy : ",acc1)
+                if i % 10 == 0: print("Sensors", sensors, "epoch_N°: _", h, " accuracy : ", acc1)
 
+            np.append(accuracy_per_feature, acc1)
+            sess.close()
+            print("iteration : ", j, "/", iteration, " accuracy_per_feature", accuracy_per_feature)
 
+    accurate.update({i: np.mean(accuracy_per_feature)})
+    print("accurate_dict", accurate)
+    accurate.clear()
 
-   acc1=np.abs(acc1)
-
-
-        sess.close()
-
-        print("acc1",acc1,"acc2",acc2)
-
-        if (acc1 > acc2):
-
-            print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDdd")
-            print ("entre" , "acc1  ",  acc1,"acc2  ",  acc2,)
-            acc2 = acc1
-            while True:
-                sensor = np.random.randint(2, len(c.FEATURES))
-                if c.FEATURES[sensor] not in sensors:
-
-                    break
-            sensors.append(c.FEATURES[sensor])
-
-        else:
-            if(len(sensors)>0):
-                sensors.pop()
-            elif np.random.rand() > 0.9:
-                sensors.pop(np.random.randint(0, len(sensors)))
-
-
-            while True:
-                sensor = np.random.randint(2, len(c.FEATURES))
-                if c.FEATURES[sensor] not in sensors:
-                    break
-            sensors.append(c.FEATURES[sensor])
+    #
+    # best_feature =max(accurate.items(), key=operator.itemgetter(1))[0]
+    # features_already_used_list.append(best_feature)
+    # features_not_used_list.pop(best_feature)
+    # print("features_not_used_list",features_not_used_list)
+    # print("features_already_used_list",features_already_used_list)
 
 
 
-        print(sensors)
+    # Sensors['tmflt_2_13', 'tmflt_1_15', 'tmflt_3_21', 'tmflt_0_8', 'tmflt_1_3', 'tmflt_2_14', 'tmflt_3_1']
+
+
+    # acc1=np.abs(acc1)
+    #
+    #
+    # sess.close()
+    #
+    #
+    #     print("acc1",acc1,"acc2",acc2)
+    #
+    #     if (acc1 > acc2):
+    #
+    #         print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDdd")
+    #         print ("entre" , "acc1  ",  acc1,"acc2  ",  acc2,)
+    #         acc2 = acc1
+    #         while True:
+    #             sensor = np.random.randint(2, len(c.FEATURES))
+    #             if c.FEATURES[sensor] not in sensors:
+    #
+    #                 break
+    #         sensors.append(c.FEATURES[sensor])
+    #
+    #     else:
+    #         if(len(sensors)>0):
+    #             sensors.pop()
+    #         # elif np.random.rand() > 0.9:
+    #         #     sensors.pop(np.random.randint(0, len(sensors)))
+    #
+    #
+    #
+    #         # sensors.pop(np.random.randint(0, len(sensors)))
+    #
+    #         elif np.random.rand() > 0.5:
+    #             while True:
+    #                 sensor = np.random.randint(2, len(c.FEATURES))
+    #                 if c.FEATURES[sensor] not in sensors:
+    #                     break
+    #             sensors.append(c.FEATURES[sensor])
+    #
+    #
+    #
+    #
+    #
+    #     print(sensors)
     #
     #
     #
