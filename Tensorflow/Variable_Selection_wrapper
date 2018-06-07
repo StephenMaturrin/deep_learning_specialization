@@ -189,41 +189,4 @@ for l in range (9999999):
     print("features_not_used_list", features_not_used_list, "\r")
     print("features_already_used_list", features_already_used_list, "\r")
     accurate.clear()
-                # acc1=np.abs(acc1)
-                #
-                #
-                # sess.close()
-                #
-                # print("acc1",acc1,"acc2",acc2)
-                #
-                # if (acc1 > acc2):
-                #
-                #     print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDdd")
-                #     print ("entre" , "acc1  ",  acc1,"acc2  ",  acc2,)
-                #     acc2 = acc1
-                #     while True:
-                #         sensor = np.random.randint(2, len(c.FEATURES))
-                #         if c.FEATURES[sensor] not in sensors:
-                #
-                #             break
-                #     sensors.append(c.FEATURES[sensor])
-                #
-                # else:
-                #     if(len(sensors)>0):
-                #         sensors.pop()
-                #     elif np.random.rand() > 0.9:
-                #         sensors.pop(np.random.randint(0, len(sensors)))
-                #
-                #
-                #     while True:
-                #         sensor = np.random.randint(2, len(c.FEATURES))
-                #         if c.FEATURES[sensor] not in sensors:
-                #             break
-                #     sensors.append(c.FEATURES[sensor])
-                #
 
-
-                # print(sensors)
-            #
-        #
-        #
