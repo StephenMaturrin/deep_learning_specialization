@@ -8,7 +8,7 @@ from project.Testing_things.tmfl_data import Tmfl_datset
 # from project.boosting_regression import by_die_predictions
 from project.generic_functions import get_logdir
 from project.Testing_things.create_nn_model import *
-from tensorflow.examples.tutorials.mnist import input_data
+from  tensorflow.examples.tutorials.mnist import input_data
 
 from project import input_builder as ib
 from project import constants  as c
@@ -19,7 +19,7 @@ from project import data_visualization as dv
 import pandas as pd
 
 acc2 = 90
-acc1 = 0
+acc1 = 40
 
 best1= 0
 best2= 0
@@ -29,13 +29,13 @@ features_not_used_list = c.FEATURES[2:len(c.FEATURES)]
 features_already_used_list = []
 
 
-dataset = Tmfl_datset()
-dataset.input_data(path_file="/ANN/input_data/test2.csv")
+# dataset = Tmfl_datset()
+# dataset.input_data(path_file="/ANN/input_data/test2.csv")
 sensors = []
 
 num_epochs = 30000  # n° repetition
-batch_size = 250  # n° input entries
-iteration = 3
+batch_size = 256  # n° input entries
+iteration = 10
 model = "Lin_Reg"
 activation_fn = tf.nn.elu
 learning_rate = 0.001
@@ -76,6 +76,13 @@ for l in range (9999999):
 
 
         for j in range(iteration):
+
+
+            print("#################################___ACC___######################################\n")
+            print("Iteration", j+1, "/",iteration)
+            dataset = Tmfl_datset()
+            dataset.input_data(path_file="/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/input_data/test2.csv")
+            print("#################################___ACC___######################################\n")
             tf.reset_default_graph()
 
             X = tf.placeholder(tf.float32, shape=(None, n_layer[0]), name='X')
@@ -86,12 +93,7 @@ for l in range (9999999):
             #     intra_op_parallelism_threads=8))
 
 
-
-
             # results = [int(i) for i in n_layer]
-
-
-
 
             # X = tf.placeholder(tf.float32, shape=(None, n_layer[0]), name='X')
             # Y = tf.placeholder(tf.float32, shape=(None), name='Y')
@@ -165,19 +167,27 @@ for l in range (9999999):
                         # xs, ys = sess.run(dataset.get_test_dataset(num_epochs=num_epochs, features=sensors))
                         # acc1, hypo = sess.run([accuracy2, layer4], feed_dict={X: xs, Y: ys})
                     acc1 = sess.run([accuracy2], feed_dict=feed_dict_v3(test_iterator, False))
-                    # print(acc)
+                    # acc1 = sess.run([loss], feed_dict=feed_dict_v3(test_iterator, False))
+                    # _,acc1= sess.run([train_step,loss], feed_dict=feed_dict_v3(train_iterator, True))
 
-                    # if i % 10 == 0: print("Sensors", sensors, "epoch_N°: _",i," accuracy : ",acc1)
-            accuracy_per_feature=np.append(accuracy_per_feature, acc1)
+                    # loss
+                    # print(acc)
+                    # if i % 100 == 0: print("Sensors", sensors, "epoch_N°: _", i, " Loss : ", np.sqrt(acc1))
+                    if i % 10000 == 0: print("Sensors", sensors, "epoch_N°: _",i," accuracy : ",acc1 )
+                    # if i % 10000 == 0: print("Sensors", sensors, "epoch_N°: _", i, " Loss : ", np.sqrt(acc1))
+
+            accuracy_per_feature=np.append(accuracy_per_feature, np.sqrt(acc1 ))
             sess.close()
-            print("Sensors ->",sensors,"\r")
-            # print("Feature", feature_i,"iteration : ", j, "/", iteration, " accuracy_per_feature", accuracy_per_feature, "\r")
+            # print("Sensors ->",sensors," iteration ", j, "/",iteration,"accuracy",accuracy_per_feature,"\r")
+            # print("Sensors ->", sensors, " iteration ", j, "/", iteration, "Loss_per_feature", accuracy_per_feature, "\r")
+            print("Feature", feature_i,"iteration : ", j, "/", iteration, " accuracy_per_feature", accuracy_per_feature, "\r")
 
             accurate.update({feature_i: np.mean(accuracy_per_feature)})
-            # print("accurate_dict", accurate, "\r")
+            print("accurate_dict", accurate, "\r")
+            # print("Loss_dict", accurate, "\r")
 
-        best_feature = max(accurate.items(), key=operator.itemgetter(1))[0]
-        best1 = max(accurate.items(), key=operator.itemgetter(1))[1]
+        best_feature = min(accurate.items(), key=operator.itemgetter(1))[0]
+        best1 = min(accurate.items(), key=operator.itemgetter(1))[1]
 
     print("best1",best1,"best2",best2,"\r")
     if best1>best2:
@@ -189,4 +199,41 @@ for l in range (9999999):
     print("features_not_used_list", features_not_used_list, "\r")
     print("features_already_used_list", features_already_used_list, "\r")
     accurate.clear()
+                # acc1=np.abs(acc1)
+                #
+                #
+                # sess.close()
+                #
+                # print("acc1",acc1,"acc2",acc2)
+                #
+                # if (acc1 > acc2):
+                #
+                #     print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDdd")
+                #     print ("entre" , "acc1  ",  acc1,"acc2  ",  acc2,)
+                #     acc2 = acc1
+                #     while True:
+                #         sensor = np.random.randint(2, len(c.FEATURES))
+                #         if c.FEATURES[sensor] not in sensors:
+                #
+                #             break
+                #     sensors.append(c.FEATURES[sensor])
+                #
+                # else:
+                #     if(len(sensors)>0):
+                #         sensors.pop()
+                #     elif np.random.rand() > 0.9:
+                #         sensors.pop(np.random.randint(0, len(sensors)))
+                #
+                #
+                #     while True:
+                #         sensor = np.random.randint(2, len(c.FEATURES))
+                #         if c.FEATURES[sensor] not in sensors:
+                #             break
+                #     sensors.append(c.FEATURES[sensor])
+                #
 
+
+                # print(sensors)
+            #
+        #
+        #
