@@ -30,9 +30,9 @@ features_already_used_list = []
 
 
 # dataset = Tmfl_datset()
-# dataset.input_data(path_file="/ANN/input_data/test2.csv")
+# dataset.input_data(path_file="/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/input_data/test2.csv")
 sensors = []
-num_epochs = 30000  # n° repetition
+num_epochs = 10000  # n° repetition
 batch_size = 256  # n° input entries
 iteration = 10
 model = "Lin_Reg"
@@ -58,30 +58,38 @@ def feed_dict_v3(train_iterator, train, all_test=False):
 sensor = np.random.randint(2, len(c.FEATURES))
 sensors.append(c.FEATURES[sensor])
 
-
+taken = True
 
 for l in range (9999999):
 
     accurate = {}
 
+
     for feature_i in features_not_used_list:
 
-        accuracy_per_feature = np.array([])
-        sensors.clear()
-        sensors.append(feature_i)
-        sensors += features_already_used_list
-        n_layer = [len(sensors), 26, 26, 26, 1]
+        if taken:
 
+            accuracy_per_feature = np.array([])
+            sensors.clear()
+            sensors.append(feature_i)
+            sensors += features_already_used_list
+            n_layer = [len(sensors), 26, 26, 26, 1]
+
+        else :
+
+
+            sensors = features_already_used_list
+            n_layer = [len(sensors), 26, 26, 26, 1]
 
 
         for j in range(iteration):
 
 
-            print("#################################___Error___######################################\n")
+            print("#################################___LOSS___######################################\n")
             print("Iteration", j+1, "/",iteration)
             dataset = Tmfl_datset()
-            dataset.input_data(path_file="ANN/input_data/test2.csv")
-            print("#################################___Error___######################################\n")
+            dataset.input_data(path_file="/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/input_data/test2.csv")
+            print("#################################___LOSS___######################################\n")
             tf.reset_default_graph()
 
             X = tf.placeholder(tf.float32, shape=(None, n_layer[0]), name='X')
@@ -138,6 +146,7 @@ for l in range (9999999):
             grads_and_vars = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9,beta2=0.899).compute_gradients(loss, [b1,W1])
 
             train_step=tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9, beta2=0.899).minimize(loss)
+
             # train_step = tf.train.AdamOptimizer(learning_rate=learning_rate, beta1=0.9, beta2=0.899).
 
             # train_step = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(loss)
@@ -166,7 +175,7 @@ for l in range (9999999):
                     # _= sess.run([train_step], feed_dict={X: xs,Y: ys})
                     # _,grads_and_vars1 = sess.run([train_step,grads_and_vars], feed_dict=feed_dict_v3(train_iterator, True))
                     # grads_and_vars2 = sess.run([grads_and_vars], feed_dict=feed_dict_v3(train_iterator, True))
-                    _ = sess.run([train_step], feed_dict=feed_dict_v3(train_iterator, True))
+                    _,acc1 = sess.run([train_step,loss], feed_dict=feed_dict_v3(train_iterator, True))
 
                     # _, grads_and_vars2= sess.run([train_step, grads_and_vars],  feed_dict=feed_dict_v3(train_iterator, True))
                     # print("grads_and_vars  ",grads_and_vars2)
@@ -175,7 +184,7 @@ for l in range (9999999):
 
                         # xs, ys = sess.run(dataset.get_test_dataset(num_epochs=num_epochs, features=sensors))
                         # acc1, hypo = sess.run([accuracy2, layer4], feed_dict={X: xs, Y: ys})
-                    acc1 = sess.run([accuracy2], feed_dict=feed_dict_v3(test_iterator, False))
+                    # acc1 = sess.run([accuracy2], feed_dict=feed_dict_v3(test_iterator, False))
                     # acc1 = sess.run([loss], feed_dict=feed_dict_v3(test_iterator, False))
                     # _,acc1= sess.run([train_step,loss], feed_dict=feed_dict_v3(train_iterator, True))
 
@@ -185,6 +194,7 @@ for l in range (9999999):
                     # if i % 10000 == 0: print("Sensors", sensors, "epoch_N°: _",i," accuracy : ",acc1 )
                     if i % 10000 == 0: print("Sensors", sensors, "epoch_N°: _", i, " Error : ", acc1)
                     # if i % 10000 == 0: print("Sensors", sensors, "epoch_N°: _", i, " Loss : ", np.sqrt(acc1))
+
 
             accuracy_per_feature=np.append(accuracy_per_feature, np.sqrt(acc1 ))
             sess.close()
@@ -198,9 +208,16 @@ for l in range (9999999):
             # print("accurate_dict", accurate, "\r")
             print("error_dict", accurate, "\r")
             # print("Loss_dict", accurate, "\r")
-
+            if not taken:
+                best2 = np.mean(accuracy_per_feature)
+                print("No taken, refresh Best2")
+                break
+        if not taken:
+            print("No taken, refresh Best2------------------->")
+            break
         best_feature = min(accurate.items(), key=operator.itemgetter(1))[0]
         best1 = min(accurate.items(), key=operator.itemgetter(1))[1]
+
 
     print("best1",best1,"best2",best2,"\r")
     if best1<best2:
@@ -212,4 +229,41 @@ for l in range (9999999):
     print("features_not_used_list", features_not_used_list, "\r")
     print("features_already_used_list", features_already_used_list, "\r")
     accurate.clear()
-                
+                # acc1=np.abs(acc1)
+                #
+                #
+                # sess.close()
+                #
+                # print("acc1",acc1,"acc2",acc2)
+                #
+                # if (acc1 > acc2):
+                #
+                #     print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDdd")
+                #     print ("entre" , "acc1  ",  acc1,"acc2  ",  acc2,)
+                #     acc2 = acc1
+                #     while True:
+                #         sensor = np.random.randint(2, len(c.FEATURES))
+                #         if c.FEATURES[sensor] not in sensors:
+                #
+                #             break
+                #     sensors.append(c.FEATURES[sensor])
+                #
+                # else:
+                #     if(len(sensors)>0):
+                #         sensors.pop()
+                #     elif np.random.rand() > 0.9:
+                #         sensors.pop(np.random.randint(0, len(sensors)))
+                #
+                #
+                #     while True:
+                #         sensor = np.random.randint(2, len(c.FEATURES))
+                #         if c.FEATURES[sensor] not in sensors:
+                #             break
+                #     sensors.append(c.FEATURES[sensor])
+                #
+
+
+                # print(sensors)
+            #
+        #
+        #
