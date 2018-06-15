@@ -22,7 +22,7 @@ acc2 = 90
 acc1 = 40
 
 best1= 0
-best2= 10000
+best2= 1000
 accurate = {}
 
 features_not_used_list = c.FEATURES[2:len(c.FEATURES)]
@@ -30,9 +30,9 @@ features_already_used_list = []
 
 
 # dataset = Tmfl_datset()
-# dataset.input_data(path_file="/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/input_data/test2.csv")
+# dataset.input_data(path_file="/ANN/input_data/test2.csv")
 sensors = []
-num_epochs = 10000  # n° repetition
+num_epochs = 30000  # n° repetition
 batch_size = 256  # n° input entries
 iteration = 10
 model = "Lin_Reg"
@@ -65,26 +65,31 @@ for l in range (9999999):
     accurate = {}
 
 
+
     for feature_i in features_not_used_list:
 
+        # print("TAKEN ------->  1", taken)
+        print("features_already_used_list ----> ", features_already_used_list)
         if taken:
 
             accuracy_per_feature = np.array([])
-            sensors.clear()
+            sensors=[]
             sensors.append(feature_i)
             sensors += features_already_used_list
             n_layer = [len(sensors), 26, 26, 26, 1]
 
         else :
 
-
+            sensors.clear()
             sensors = features_already_used_list
             n_layer = [len(sensors), 26, 26, 26, 1]
+        print("features_already_used_list ----> ", features_already_used_list)
+        print("SENSORS ----> ", sensors)
 
 
         for j in range(iteration):
 
-
+            # print("TAKEN -------> 2", taken)
             print("#################################___LOSS___######################################\n")
             print("Iteration", j+1, "/",iteration)
             dataset = Tmfl_datset()
@@ -195,8 +200,10 @@ for l in range (9999999):
                     if i % 10000 == 0: print("Sensors", sensors, "epoch_N°: _", i, " Error : ", acc1)
                     # if i % 10000 == 0: print("Sensors", sensors, "epoch_N°: _", i, " Loss : ", np.sqrt(acc1))
 
+            print("TAKEN -------> 3", taken)
 
             accuracy_per_feature=np.append(accuracy_per_feature, np.sqrt(acc1 ))
+            accurate.update({feature_i: np.mean(accuracy_per_feature)})
             sess.close()
             # print("Sensors ->",sensors," iteration ", j, "/",iteration,"accuracy",accuracy_per_feature,"\r")
             # print("Sensors ->", sensors, " iteration ", j, "/", iteration, "Loss_per_feature", accuracy_per_feature, "\r")
@@ -204,31 +211,55 @@ for l in range (9999999):
             print("Feature", feature_i, "iteration : ", j, "/", iteration, " Error_per_feature",
                   accuracy_per_feature, "\r")
 
-            accurate.update({feature_i: np.mean(accuracy_per_feature)})
+
             # print("accurate_dict", accurate, "\r")
             print("error_dict", accurate, "\r")
             # print("Loss_dict", accurate, "\r")
-            if not taken:
-                best2 = np.mean(accuracy_per_feature)
-                print("No taken, refresh Best2")
-                break
+
         if not taken:
-            print("No taken, refresh Best2------------------->")
+
+            best3 = best2
+            best2 = np.mean(accuracy_per_feature)
+
+            print("No taken, refresh Best2 from ",best3, "to ----> ",best2 )
+
             break
-        best_feature = min(accurate.items(), key=operator.itemgetter(1))[0]
-        best1 = min(accurate.items(), key=operator.itemgetter(1))[1]
+        else:
+            best_feature = min(accurate.items(), key=operator.itemgetter(1))[0]
+            best1 = min(accurate.items(), key=operator.itemgetter(1))[1]
+
+    # print("TAKEN -------> 4", taken)
+
+    if taken:
+        print("best1", best1, "best2", best2, "\r")
+        if best1<=best2 :
+
+            # print("TAKEN -------> QUE", taken)
+            best2=best1
+            # best_feature = max(accurate.items(), key=operator.itemgetter(1))[1]
+            print("best_feature",best_feature)
+            features_already_used_list.append(best_feature)
+            features_not_used_list.remove(best_feature)
+            print("features_not_used_list", features_not_used_list, "\r")
+            print("features_already_used_list", features_already_used_list, "\r")
 
 
-    print("best1",best1,"best2",best2,"\r")
-    if best1<best2:
-        best2=best1
-        # best_feature = max(accurate.items(), key=operator.itemgetter(1))[1]
-        print("best_feature",best_feature)
-        features_already_used_list.append(best_feature)
-        features_not_used_list.remove(best_feature)
+        else:
+            taken = False
+
+    else:
+        taken = True
+    accurate.clear()
+
+
     print("features_not_used_list", features_not_used_list, "\r")
     print("features_already_used_list", features_already_used_list, "\r")
-    accurate.clear()
+    print("TAKEN -------> 5", taken)
+
+
+
+
+
                 # acc1=np.abs(acc1)
                 #
                 #
