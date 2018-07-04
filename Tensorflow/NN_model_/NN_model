@@ -27,12 +27,13 @@ class NN_model():
     #
     # keep_prob = tf.placeholder(tf.float64)
 
-    def __init__(self, dataset, num_epochs, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,optimizer, dropout=None,normalization=None, lambd_L1=None,lambd_L2=None, logdir= "/ANN/log"):
+    def __init__(self, dataset, num_epochs,batch_norm, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,optimizer, dropout=None,normalization=None, lambd_L1=None,lambd_L2=None, logdir= "/home/tmpext4/ANN/log"):
 
             tf.reset_default_graph()
             self.dataset= dataset
             self.X = tf.placeholder(tf.float64, shape=(None, n_layer[0]), name='X')
             self.Y = tf.placeholder(tf.float64, shape=(None), name='Y')
+            self.is_training = tf.placeholder(tf.bool)
             self.n_layer=n_layer
             self.model = model
             self.logdir = get_logdir(logdir)
@@ -48,19 +49,21 @@ class NN_model():
             self.normalization = normalization
             self.lambd_L1 = lambd_L1
             self.lambd_L2 = lambd_L2
+            self.batch_norm =  batch_norm
+
             #
             # print (self.logdir)
-            # if not os.path.exists(self.logdir):
-            #     os.mkdir(self.logdir)
-            #
-            # self.f = open(os.path.abspath(self.logdir) + "/model.txt", "a+")
-            # self.f.write("model : " + self.model+ "\n")
-            # self.f.write("n_layer : " + str(self.n_layer) +"\n")
-            # self.f.write("learning_rate : " + str(self.learning_rate)+"\n")
-            # self.f.write("num_epochs : " + str(self.steps)+"\n")
-            # self.f.write("batch_size : " + str(self.batch_size)+"\n")
-            #
-            #
+
+            if board_metrics:
+                if not os.path.exists(self.logdir):
+                    os.mkdir(self.logdir)
+
+                self.f = open(os.path.abspath(self.logdir) + "/model.txt", "a+")
+                self.f.write("model : " + self.model+ "\n")
+                self.f.write("n_layer : " + str(self.n_layer) +"\n")
+                self.f.write("learning_rate : " + str(self.learning_rate)+"\n")
+                self.f.write("num_epochs : " + str(self.steps)+"\n")
+                self.f.write("batch_size : " + str(self.batch_size)+"\n")
 
 
             # if self.model =="Lin_Reg":
@@ -70,10 +73,6 @@ class NN_model():
 
 
             #Batch normalization
-
-
-
-
 
 
     def variables_summaries(self,name,var):
@@ -92,7 +91,7 @@ class NN_model():
 
 
 
-    def nn_layer(self,input_tensor, input_dim, output_dim, layer_name, activation_fn= tf.nn.relu):
+    def nn_layer(self,input_tensor, input_dim, output_dim, layer_name, layer_BN, activation_fn= tf.nn.relu):
 
         #iplement tf.nn.batch_normalization
 
@@ -109,19 +108,28 @@ class NN_model():
                 self.variables_summaries("Bias_"+layer_name,bias)
             with tf.name_scope("pre_activation"):
                 pre_activation = tf.add(tf.matmul(input_tensor,weight),bias)
-
-
                 tf.summary.histogram("pre_activation",pre_activation)
+
+            if (self.batch_norm and layer_BN):
+
+                with tf.name_scope("batch_normalization"):
+                    pre_activation_batch_norm = tf.layers.batch_normalization(pre_activation, training=self.is_training)
+                    tf.summary.histogram("batch_norm", pre_activation)
+                    pre_activation_l=pre_activation_batch_norm
+            else:
+                pre_activation_l = pre_activation
+
+
             with tf.name_scope("activation"):
-                activation= activation_fn(pre_activation)
+                activation= activation_fn(pre_activation_l)
                 tf.summary.histogram("activation", activation)
             #
-            # with tf.name_scope("dropout_activation"):
-            #     drop_out = tf.nn.dropout(activation, self.keep_prob)  # DROP-OUT here P = 1 -kp
-            #     # activation = activation_fn(pre_activation)
-            #     tf.summary.histogram("drop_out", drop_out)
+            with tf.name_scope("dropout_activation"):
+                drop_out = tf.nn.dropout(activation, self.keep_prob)  # DROP-OUT here P = 1 -kp
+                # activation = activation_fn(pre_activation)
+                tf.summary.histogram("drop_out", drop_out)
 
-        return weight, bias,activation#, drop_out
+        return weight, bias, drop_out#, self.keep_prob
 
 
     
@@ -174,8 +182,9 @@ class NN_model():
                         reg_aux = reg_aux + tf.nn.l2_loss(w)
                     loss_R = tf.reduce_mean(loss + reg_aux * self.lambd_L2)
 
-
-                train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.899).minimize(loss_R)
+                with tf.control_dependencies(tf.get_collection(tf.GraphKeys.UPDATE_OPS)):
+                    # https: // stackoverflow.com / questions / 43234667 / tf - layers - batch - normalization - large - test - error
+                    train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.999).minimize(loss_R)
 
                 # train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate, beta1=0.9, beta2=0.899).minimize(loss_l1)
 
@@ -199,8 +208,10 @@ class NN_model():
                 if (self.model == "Lin_Reg"):
 
                     correct_prediction = tf.subtract(self.Y,hypothesis)
-                    accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction,self.Y)),100) # Error prediction in %
-                    accuracy=1 - accuracy
+                    accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction,self.Y)), 100) # Error prediction in %
+
+
+                    accuracy=100 - tf.abs(accuracy)
                     tf.summary.scalar("accuracy", accuracy)
                     return accuracy
 
@@ -219,44 +230,50 @@ class NN_model():
         print( xs, ys)
         return {self.X: xs, self.Y: ys, self.keep_prob: k}
 
-    def feed_dict_v2(self, train,features=c.FEATURES[2:len(c.FEATURES)], all_test=False  ):
+    def feed_dict_v2(self, train,features=c.FEATURES[3:len(c.FEATURES)], all_test=False  ): #c.FEATURES[2:len(c.FEATURES)]
 
 
         if train:
             xs, ys = self.sess.run(self.dataset.get_train_dataset(batch_size=self.batch_size, num_epochs=self.steps,features=features))
 
             k = self.k_p_dropout
-
+            is_train = True
         elif(not all_test):
             xs, ys = self.sess.run(self.dataset.get_test_dataset(num_epochs=self.steps,features=features))
             k = 1
+            is_train = False
 
         else:
             xs, ys = self.sess.run(self.dataset.get_all_dataset(),features=features)
             k = 1
+            is_train = False
 
-        return {self.X: xs, self.Y: ys, self.keep_prob: k}
-
-
-
+        return {self.X: xs, self.Y: ys, self.keep_prob: k, self.is_training : is_train}
 
 
+
+
+    #TODO change train_iterator to iterator (confusing)
     def feed_dict_v3(self,train_iterator, train,all_test=False):
 
 
         if train:
             xs, ys = self.sess.run(train_iterator)
-            k = 1
+            k = self.k_p_dropout
+            is_train = True
+
 
         elif(not all_test):
-            xs, ys = self.sess.run(self.dataset.get_test_dataset(num_epochs=self.steps))
+            xs, ys = self.sess.run(train_iterator)
             k = 1
+            is_train= False
 
         else:
             xs, ys = self.sess.run(self.dataset.get_all_dataset())
             k = 1
+            is_train = False
 
-        return {self.X: xs, self.Y: ys, self.keep_prob: k}
+        return {self.X: xs, self.Y: ys, self.keep_prob: k, self.is_training : is_train }
 
 
 
@@ -264,8 +281,8 @@ class NN_model():
 
         with tf.Session() as self.sess:
 
-            train_iterator = self.dataset.get_train_dataset(batch_size=self.batch_size, num_epochs=self.steps)
-            test_iterator = self.dataset.get_test_dataset(num_epochs=self.steps)
+            train_iterator = self.dataset.get_train_dataset(batch_size=self.batch_size, num_epochs=self.steps,features=c.FEATURES[3:]) #features=c.FEATURES[2:len(c.FEATURES)])
+            test_iterator = self.dataset.get_test_dataset(num_epochs=self.steps,features=c.FEATURES[3:]) #features=c.FEATURES[2:len(c.FEATURES)])
             # for i in range(10):
             #     print(sess.run(train_iterator))
 
@@ -282,16 +299,16 @@ class NN_model():
             for index,l_ in enumerate(self.n_layer):
 
                 if(index == len(self.n_layer)-2):
-                    weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1), activation_fn=tf.identity)
+                    weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1), layer_BN=False,activation_fn=tf.identity)
                     weights.append(weight)
                     layers.update({index+1 : {"weight":weight, "bias":bias ,"activation" : activation }})
                     break
                 if (index == 0):
-                     weight, bias, activation = self.nn_layer(self.X, self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1),activation_fn=self.activation_fn)
+                     weight, bias, activation = self.nn_layer(self.X, self.n_layer[index], self.n_layer[index+1], "layer_"+str(index+1),layer_BN=True,activation_fn=self.activation_fn)
                      weights.append(weight)
                      layers.update({index+1 : {"weight": weight, "bias": bias, "activation" : activation }})
                 else :
-                    weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index + 1],"layer_" + str(index + 1), activation_fn=self.activation_fn)
+                    weight, bias, activation = self.nn_layer(layers[index]["activation"], self.n_layer[index], self.n_layer[index + 1],"layer_" + str(index + 1),layer_BN=True, activation_fn=self.activation_fn)
                     weights.append(weight)
                     layers.update({index + 1: {"weight": weight, "bias": bias, "activation" : activation}})
 
@@ -347,36 +364,46 @@ class NN_model():
                         # summary, _ = sess.run([merged, _train_step, ], feed_dict=self.feed_dict( True))
                         #
 
-            # self.f.write("Loss :" + str(np.sqrt(__loss))+"\n")
-            # self.f.write("Accuracy :" + str(acc)+ "\n")
-            # self.f.close()
+            if self.board_metrics:
+                self.f.write("Loss :" + str(np.sqrt(__loss))+"\n")
+                self.f.write("Accuracy :" + str(acc)+ "\n")
+                self.f.close()
 
-            # outdir = self.logdir + 'Weights_Bias'
-            # if not os.path.exists(outdir):
-            #     os.mkdir(outdir)
+                outdir = self.logdir + 'Weights_Bias'
+                if not os.path.exists(outdir):
+                    os.mkdir(outdir)
 
 
-            #
-            # for index, value in enumerate(self.n_layer):
-            #     if index == len(self.n_layer)-1:
-            #         break
-            #     weight = layers[index+1]["weight"]
-            #     bias = layers[index+1]["bias"]
-            #     __weight,__bias = sess.run([weight,bias],feed_dict=self.feed_dict_v2(False,features))
-            #     # __weight, __bias = sess.run([weight, bias], feed_dict=self.feed_dict( False))
-            #     w = pd.DataFrame(data=__weight.astype(float))
-            #     w.to_csv(os.path.join(outdir, 'w'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
-            #     b = pd.DataFrame(data=__bias.astype(float))
-            #     b.to_csv(os.path.join(outdir, 'b'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
+
+                for index, value in enumerate(self.n_layer):
+                    if index == len(self.n_layer)-1:
+                        break
+                    weight = layers[index+1]["weight"]
+                    bias = layers[index+1]["bias"]
+                    __weight,__bias = self.sess.run([weight,bias],feed_dict=self.feed_dict_v3(test_iterator, False))
+                    # __weight, __bias = sess.run([weight, bias], feed_dict=self.feed_dict( False))
+                    w = pd.DataFrame(data=__weight.astype(float))
+                    w.to_csv(os.path.join(outdir, 'w'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
+                    b = pd.DataFrame(data=__bias.astype(float))
+                    b.to_csv(os.path.join(outdir, 'b'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
 
 
             if self.board_metrics:
                 train_writer.close()
                 test_writer.close()
+                print("tensorboard --logdir=%s --port=  " % self.logdir)
 
-        print("tensorboard --logdir=%s --port=  " % self.logdir)
+        #
+        # with self.sess.as_default():
+        #     print("ENTRE")
+        #
+        #     variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+        #     values = {}
+        #     for variable in variables:
+        #         print(variable)
+
         self.sess.close()
-        return acc,__loss
+        return acc ,np.sqrt(__loss)
 
     def test(self,dataset,path): # use W and B from train
 
@@ -449,6 +476,9 @@ class NN_model():
 
             print(sess.run([accur], self.feed_dict_v2(train=False,all_test=False)))
 
+
+
+
     def predict(self, path,input_fn,pruning,treshold,treshold_show):
 
 
@@ -516,60 +546,34 @@ class NN_model():
             return prediction
 
 
-    #
-    # def variable_selection_wrapper_mode(self):
-    #     sensors = []
-    #
-    #     acc2 =0.5
-    #
-    #     sensor = np.random.randint(2, len(c.FEATURES))
-    #     sensors.append(c.FEATURES[sensor])
-    #
-    #
-    #
-    #     for i in range(10):
-    #
-    #         self.n_layer[0]= len(sensors)
-    #
-    #
-    #
-    #         acc1, loss1 = self.train(sensors)
-    #         # tf_session = keras.backend.get_session()
-    #         # tf_graph = tf.get_default_graph()
-    #         # with tf_session.as_default():
-    #         #     with tf_graph.as_default():
-    #         #         self.reset_states()
-    #
-    #
-    #         tf.reset_default_graph()
-    #         self.X = tf.placeholder(tf.float64, shape=(None,  self.n_layer[0]), name='X')
-    #         self.Y = tf.placeholder(tf.float64, shape=(None), name='Y')
-    #         self.sess = tf.InteractiveSession()
-    #
-    #         if (acc1 > acc2):
-    #             print("hola")
-    #             acc2 =acc1
-    #
-    #
-    #             while True:
-    #                 sensor = np.random.randint(2, len(c.FEATURES))
-    #                 if c.FEATURES[sensor] not in sensors:
-    #                     break
-    #             sensors.append(c.FEATURES[sensor])
-    #
-    #         else:
-    #             # if(len(sensors)>1):
-    #             #     sensors.pop()
-    #             # else:
-    #             sensors.pop()
-    #             print("chay")
-    #             while True:
-    #                 sensor = np.random.randint(2, len(c.FEATURES))
-    #                 if c.FEATURES[sensor] not in sensors:
-    #                     break
-    #             sensors.append(c.FEATURES[sensor])
-    #
-    #
-    #
-    #     print(sensors)
-    #
+
+#TODO ################################## GET VARIABLES #################################
+
+
+
+# with sess.as_default():
+#     def get_variables_values():
+#         variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+#         values = {}
+#         for variable in variables:
+#             values[variable.name[:-2]] = sess.run(variable, feed_dict={
+#                 x:batch[0], y_:batch[1], is_training:True
+#                 })
+#         return values
+#
+#
+#     for i in range(t_iter):
+#         batch = mnist.train.next_batch(batch_size)
+#         if i%100 == 0: #test-set summary
+#             print('####################################')
+#             values = get_variables_values()
+#             print('moving variance is:')
+#             print(values["conv1_bn/moving_variance"])
+#             print('moving mean is:')
+#             print(values["conv1_bn/moving_mean"])
+#             print('gamma is:')
+#             print(values["conv1_bn/gamma/Adam"])
+#             print('beta is:')
+#             print(values["conv1_bn/beta/Adam"])
+#             summary, acc = sess.run([merged,accuracy], feed_dict={
+#                 x:mnist.test.images, y_:mnist.test.labels, is_training:False
