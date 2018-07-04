@@ -27,12 +27,13 @@ class NN_model():
     #
     # keep_prob = tf.placeholder(tf.float64)
 
-    def __init__(self, dataset, num_epochs,batch_norm, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,optimizer, dropout=None,normalization=None, lambd_L1=None,lambd_L2=None, logdir= "/home/tmpext4/ANN/log"):
+    def __init__(self, dataset, num_epochs,batch_norm, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,optimizer, dropout=None,normalization=None, lambd_L1=None,lambd_L2=None, logdir= "/home/tmpext43/ANN/log"):
 
             tf.reset_default_graph()
             self.dataset= dataset
             self.X = tf.placeholder(tf.float64, shape=(None, n_layer[0]), name='X')
             self.Y = tf.placeholder(tf.float64, shape=(None), name='Y')
+            self.learning_rate_dec = tf.placeholder(tf.float32)
             self.is_training = tf.placeholder(tf.bool)
             self.n_layer=n_layer
             self.model = model
@@ -254,26 +255,29 @@ class NN_model():
 
 
     #TODO change train_iterator to iterator (confusing)
-    def feed_dict_v3(self,train_iterator, train,all_test=False):
+    def feed_dict_v3(self,train_iterator, train,epoch = 1, all_test=False):
 
 
         if train:
             xs, ys = self.sess.run(train_iterator)
             k = self.k_p_dropout
             is_train = True
+            learning_rate_decay =  (1/(1+0.01*epoch)) * self.learning_rate
 
 
         elif(not all_test):
             xs, ys = self.sess.run(train_iterator)
             k = 1
             is_train= False
+            learning_rate_decay =  self.learning_rate
 
         else:
             xs, ys = self.sess.run(self.dataset.get_all_dataset())
             k = 1
             is_train = False
+            learning_rate_decay =  self.learning_rate
 
-        return {self.X: xs, self.Y: ys, self.keep_prob: k, self.is_training : is_train }
+        return {self.X: xs, self.Y: ys, self.keep_prob: k, self.is_training : is_train, self.learning_rate_dec : learning_rate_decay }
 
 
 
@@ -354,7 +358,7 @@ class NN_model():
                 else:
                         # for i in range(250):
                     # summary, _, __loss = sess.run([merged, _train_step, _loss],feed_dict=self.feed_dict_v2(True,features= features))
-                    summary,_, __loss = self.sess.run([merged,_train_step, _loss], feed_dict=self.feed_dict_v3(train_iterator, True))
+                    summary,_, __loss = self.sess.run([merged,_train_step, _loss], feed_dict=self.feed_dict_v3(train_iterator, True,i))
                     if self.board_metrics: train_writer.add_summary(summary, i)
 
                     #_, __loss= sess.run([_train_step, _loss],feed_dict=self.feed_dict_v2(train_iterator, True))
