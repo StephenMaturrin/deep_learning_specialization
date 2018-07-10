@@ -1,0 +1,322 @@
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+import numpy as np
+import argparse
+import sys
+from matplotlib import pyplot as plt
+from tensorflow.examples.tutorials.mnist import input_data
+
+import tensorflow as tf
+
+FLAGS = None
+learning_rate = 0.001
+n_layers= [784,256,128,256,784]
+
+# Import data
+mnist = input_data.read_data_sets("/tmp/tensorflow/mnist/input_data")
+y_ = tf.placeholder(tf.int64, [None])
+
+# Create the model
+x = tf.placeholder(shape=(None,n_layers[0]), name = "x",dtype=tf.float32)
+
+learning_rate_decay = tf.placeholder(dtype=tf.float64)
+
+####################>>> LAYER 1  NET 1 <<<##########################
+
+with tf.name_scope("Layer1_encoder"):
+  weight1 = tf.get_variable("W1", shape=(n_layers[0], n_layers[1]), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W1", weight1)
+  bias1 = tf.Variable(tf.zeros(shape=(1, n_layers[1])), name='B1')
+
+  with tf.name_scope("PreActivation_layer1"):
+      pre_activation_l1 = tf.add(tf.matmul(x, weight1), bias1)
+
+  with tf.name_scope("Activation_layer1"):
+      activation_l1 = tf.nn.elu(pre_activation_l1)
+
+####################>>> LAYER 2  NET 1  <<<##########################
+
+with tf.name_scope("Layer2_encoder"):
+  weight2 = tf.get_variable("W2", shape=(n_layers[1], n_layers[2]), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W2", weight2)
+  bias2 = tf.Variable(tf.zeros(shape=(1, n_layers[2])), name='B2')
+
+  with tf.name_scope("PreActivation_layer2"):
+      pre_activation_l2 = tf.add(tf.matmul(activation_l1, weight2), bias2)
+
+  with tf.name_scope("Activation_layer2"):
+      activation_l2 = tf.nn.elu(pre_activation_l2)
+
+####################>>> LAYER 3  NET 1  <<<##########################
+
+with tf.name_scope("Layer3_encoder"):
+  weight3 = tf.get_variable("W3", shape=(n_layers[2], n_layers[3]), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W3", weight3)
+  bias3 = tf.Variable(tf.zeros(shape=(1, n_layers[3])), name='B3')
+
+  with tf.name_scope("PreActivation_layer3"):
+      pre_activation_l3 = tf.add(tf.matmul(activation_l2, weight3), bias3)
+
+  with tf.name_scope("Activation_layer3"):
+      activation_l3 = tf.nn.elu(pre_activation_l3)
+
+####################>>> LAYER 4 HETERO  NET 1  <<<##########################
+with tf.name_scope("Layer4_encoder"):
+  weight4 = tf.get_variable("W4", shape=(n_layers[3], 10), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W4", weight4)
+  bias4 = tf.Variable(tf.zeros(shape=(1, 10)), name='B4')
+
+  with tf.name_scope("PreActivation_layer4"):
+      y = tf.add(tf.matmul(activation_l3, weight4), bias4)
+
+      cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_, logits=y)
+      train_step = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy)
+
+      pred= tf.nn.top_k(y,1)
+
+  with tf.name_scope("eval"):
+      correct = tf.nn.in_top_k(y, y_, 1)
+      accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
+
+
+
+####################>>> LAYER 4 AUTO NET 1 <<<##########################
+
+with tf.name_scope("Layer4_auto"):
+    weight4_auto = tf.get_variable("W4_auto", shape=(n_layers[3], n_layers[4]), initializer=tf.glorot_uniform_initializer() )
+    tf.summary.histogram("W4_auto", weight4_auto)
+    bias4_auto = tf.Variable(tf.zeros(shape=(1, n_layers[4])), name='B4_auto')
+
+    with tf.name_scope("PreActivation_layer4_auto"):
+        pre_activation_l4_auto = tf.add(tf.matmul(activation_l3, weight4_auto), bias4_auto)
+
+    with tf.name_scope("Activation_layer4_auto"):
+        activation_l4_auto = tf.nn.elu(pre_activation_l4_auto)
+
+
+    with tf.name_scope("MSE_auto"):
+        mse_loss =  tf.reduce_mean(tf.square(x-activation_l4_auto))
+
+    with tf.name_scope("train_auto"):
+        train_step_auto = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(mse_loss)
+
+
+
+############################# >>>>    NET 2   <<<<<<<< ##########################
+
+
+y_net2 = tf.placeholder(tf.int64, [None])
+
+# Create the model
+x_net2 = tf.placeholder(shape=(None,n_layers[0]), name = "x",dtype=tf.float32)
+
+learning_rate_decay_net2 = tf.placeholder(dtype=tf.float64)
+
+####################>>> LAYER 1 NET 2 <<<##########################
+
+with tf.name_scope("Layer1_encoder_net2"):
+  weight1_net2 = tf.get_variable("W1_net2", shape=(n_layers[0], n_layers[1]), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W1_net2", weight1_net2)
+  bias1_net2 = tf.Variable(tf.zeros(shape=(1, n_layers[1])), name='B1_net2')
+
+  with tf.name_scope("PreActivation_layer1_net2"):
+      pre_activation_l1_net2= tf.add(tf.matmul(x, weight1_net2), bias1_net2)
+
+  with tf.name_scope("Activation_layer1_net2"):
+      activation_l1_net2 = tf.nn.elu(pre_activation_l1_net2)
+
+####################>>> LAYER 2  NET 2  <<<##########################
+
+with tf.name_scope("Layer2_encoder_net2"):
+  weight2_net2 = tf.get_variable("W2_net2", shape=(n_layers[1], n_layers[2]), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W2_net2", weight2_net2)
+  bias2_net2 = tf.Variable(tf.zeros(shape=(1, n_layers[2])), name='B2_net2')
+
+  with tf.name_scope("PreActivation_layer2_net2"):
+      pre_activation_l2_net2 = tf.add(tf.matmul(activation_l1_net2, weight2_net2), bias2_net2)
+
+  with tf.name_scope("Activation_layer2_net2"):
+      activation_l2_net2 = tf.nn.elu(pre_activation_l2_net2)
+
+####################>>> LAYER 3 <<<##########################
+
+with tf.name_scope("Layer3_encoder"):
+  weight3_net2 = tf.get_variable("W3_net2", shape=(n_layers[2], n_layers[3]), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W3_net2", weight3_net2)
+  bias3_net2 = tf.Variable(tf.zeros(shape=(1, n_layers[3])), name='B3_net2')
+
+  with tf.name_scope("PreActivation_layer3_net2"):
+      pre_activation_l3_net2 = tf.add(tf.matmul(activation_l2_net2, weight3_net2), bias3_net2)
+
+  with tf.name_scope("Activation_layer3_net2"):
+      activation_l3_net2 = tf.nn.elu(pre_activation_l3_net2)
+
+####################>>> LAYER 4 HETERO NET 2  <<<##########################
+with tf.name_scope("Layer4_encoder_net2"):
+  weight4_net2 = tf.get_variable("W4_net2", shape=(n_layers[3], 10), initializer=tf.glorot_uniform_initializer())
+  tf.summary.histogram("W4_net2", weight4_net2)
+  bias4_net2 = tf.Variable(tf.zeros(shape=(1, 10)), name='B4_net2')
+
+  with tf.name_scope("PreActivation_layer4_net2"):
+      ynet2 = tf.add(tf.matmul(activation_l3_net2, weight4_net2), bias4_net2)
+
+      cross_entropy_net2 = tf.losses.sparse_softmax_cross_entropy(labels=y_net2, logits=ynet2)
+      train_step_net2 = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy_net2)
+
+
+      pred_net2= tf.nn.top_k(ynet2,1)
+
+  with tf.name_scope("eval_net2"):
+      correct_net2 = tf.nn.in_top_k(ynet2, y_net2, 1)
+      accuracy_net2 = tf.reduce_mean(tf.cast(correct_net2, tf.float32))
+
+
+
+
+####################>>> LAYER 4 AUTO NET 2 <<<##########################
+
+with tf.name_scope("Layer4_auto_net2"):
+    weight4_auto_net2 = tf.get_variable("W4_auto_net2", shape=(n_layers[3], n_layers[4]), initializer=tf.glorot_uniform_initializer() )
+    tf.summary.histogram("W4_auto_net2", weight4_auto_net2)
+    bias4_auto_net2 = tf.Variable(tf.zeros(shape=(1, n_layers[4])), name='B4_auto_net2')
+
+    with tf.name_scope("PreActivation_layer4_auto_net2"):
+        pre_activation_l4_auto_net2 = tf.add(tf.matmul(activation_l3_net2, weight4_auto_net2), bias4_auto_net2)
+
+    with tf.name_scope("Activation_layer4_auto_net2"):
+        activation_l4_auto_net2 = tf.nn.elu(pre_activation_l4_auto_net2)
+
+
+    with tf.name_scope("MSE_auto_net2"):
+        mse_loss_net2 =  tf.reduce_mean(tf.square(x_net2-activation_l4_auto_net2))
+
+    with tf.name_scope("train_auto_net2"):
+        train_step_auto_net2 = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(mse_loss_net2)
+
+############################# >>>>   THE END of  NET 2   <<<<<<<< ##########################
+
+
+
+
+sess = tf.InteractiveSession()
+tf.global_variables_initializer().run()
+# Train
+# for _ in range(1000):
+#     batch_xs, batch_ys = mnist.train.next_batch(100)
+#     sess.run(train_step, feed_dict={x: batch_xs, y_: batch_ys})
+#
+# # Test trained model
+#     correct_prediction = tf.equal(tf.argmax(y, 1), y_)
+#     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+#
+init = tf.global_variables_initializer()
+
+with tf.Session() as sess:
+
+    # Run the initializer
+    sess.run(init)
+
+    # Training
+    for i in range(1, 1000):
+        # Prepare Data
+        # Get the next batch of MNIST data (only images are needed, not labels)
+        batch_x, batch_y = mnist.train.next_batch(256)
+        _,_,loss_hetero_, loss_auto_ = sess.run([train_step,train_step_auto, mse_loss,cross_entropy], feed_dict={x: batch_x,y_: batch_y,learning_rate_decay: (learning_rate/(1+0.0001*i)) })
+
+        # Display logs per step
+        if i % 100 == 0 or i == 1:
+            print('Step %i: Minibatch Loss  Auto : %f' % (i, loss_auto_))
+            print('Step %i: Minibatch Loss  Hetero: %f' % (i, loss_hetero_))
+
+    # Testing HETERO
+    batch_x, batch_y = mnist.test.next_batch(1000)
+    hetero,acc = sess.run([pred,accuracy], feed_dict={x: batch_x,y_: batch_y})
+    print("Accurancy", acc)
+    # Testing AUTO
+    n = 4
+    canvas_orig = np.empty((28 * n, 28 * n))
+    canvas_recon = np.empty((28 * n, 28 * n))
+    for i in range(n):
+        # MNIST test set
+        batch_x, batch_y = mnist.test.next_batch(n)
+        # Encode and decode the digit image
+        # auto = sess.run(activation_l4_auto, feed_dict={X: batch_x})
+        auto = sess.run(activation_l4_auto, feed_dict={x: batch_x})
+
+        # auto,hetero = sess.run([activation_l4_auto,activation_l4_hetero], feed_dict={X: batch_x})
+        # print("Class predicted", hetero)
+        # Display original images
+        for j in range(n):
+            # Draw the original digits
+            canvas_orig[i * 28:(i + 1) * 28, j * 28:(j + 1) * 28] = \
+                batch_x[j].reshape([28, 28])
+                # Display reconstructed images
+        for j in range(n):
+            # Draw the reconstructed digits
+            canvas_recon[i * 28:(i + 1) * 28, j * 28:(j + 1) * 28] = \
+                auto[j].reshape([28, 28])
+
+    print("Original Images")
+    plt.figure(figsize=(n, n))
+    plt.imshow(canvas_orig, origin="upper", cmap="gray")
+    plt.show()
+
+    print("Reconstructed Images")
+    plt.figure(figsize=(n, n))
+    plt.imshow(canvas_recon, origin="upper", cmap="gray")
+    plt.show()
+
+
+    #Generate NOISE and train NET2
+
+    #
+    # for i in range(1, 1000):
+    #     # Prepare Data
+    #     # Get the next batch of MNIST data (only images are needed, not labels)
+    #     batch_x, batch_y = mnist.train.next_batch(256)
+    #     _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2], feed_dict={x: batch_x,y_: batch_y,learning_rate_decay: (learning_rate/(1+0.0001*i)) })
+    #
+    #     # Display logs per step
+    #     if i % 100 == 0 or i == 1:
+    #         print('Step %i: Minibatch Loss: %f' % (i, loss_auto_))
+    #         print('Step %i: Minibatch Loss: %f' % (i, loss_hetero_))
+    #
+    # # Testing HETERO
+    # batch_x, batch_y = mnist.test.next_batch(1000)
+    # hetero,acc = sess.run([pred,accuracy], feed_dict={x: batch_x,y_: batch_y})
+    # print("Accurancy", acc)
+    # # Testing AUTO
+    # n = 4
+    # canvas_orig = np.empty((28 * n, 28 * n))
+    # canvas_recon = np.empty((28 * n, 28 * n))
+    # for i in range(n):
+    #     # MNIST test set
+    #     batch_x, batch_y = mnist.test.next_batch(n)
+    #     # Encode and decode the digit image
+    #     # auto = sess.run(activation_l4_auto, feed_dict={X: batch_x})
+    #     auto = sess.run(activation_l4_auto, feed_dict={x: batch_x})
+    #
+    #     # auto,hetero = sess.run([activation_l4_auto,activation_l4_hetero], feed_dict={X: batch_x})
+    #     # print("Class predicted", hetero)
+    #     # Display original images
+    #     for j in range(n):
+    #         # Draw the original digits
+    #         canvas_orig[i * 28:(i + 1) * 28, j * 28:(j + 1) * 28] = \
+    #             batch_x[j].reshape([28, 28])
+    #             # Display reconstructed images
+    #     for j in range(n):
+    #         # Draw the reconstructed digits
+    #         canvas_recon[i * 28:(i + 1) * 28, j * 28:(j + 1) * 28] = \
+    #             auto[j].reshape([28, 28])
+    #
+    # print("Original Images")
+    # plt.figure(figsize=(n, n))
+    # plt.imshow(canvas_orig, origin="upper", cmap="gray")
+    # plt.show()
+    #
+    # print("Reconstructed Images")
+    # plt.figure(figsize=(n, n))
+    # plt.imshow(canvas_recon, origin="upper", cmap="gray")
+    # plt.show()
