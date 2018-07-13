@@ -2,9 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 import numpy as np
-
-from multiprocessing import Pool
-
 import argparse
 import sys
 from matplotlib import pyplot as plt
@@ -86,9 +83,6 @@ y_net2_auto_hetero = tf.placeholder(tf.float32, shape=(1,10))
 x_net2 = tf.placeholder(shape=(None, n_layers[0]), name="x_net2", dtype=tf.float32)
 
 learning_rate_decay_net2 = tf.placeholder(dtype=tf.float64)
-learning_rate_decay__auto_hetero_net2 = tf.placeholder(dtype=tf.float64)
-learning_rate_decay__auto_net2 = tf.placeholder(dtype=tf.float64)
-
 
 ####################>>> LAYER 1 NET 2 <<<##########################
 
@@ -115,7 +109,7 @@ with tf.name_scope("Layer4_encoder_net2"):
         ynet2 = tf.add(tf.matmul(activation_l1_net2, weight4_net2), bias4_net2)
 
         cross_entropy_net2 = tf.losses.sparse_softmax_cross_entropy(labels=y_net2, logits=ynet2)
-        train_step_net2 = tf.train.AdamOptimizer(learning_rate_decay_net2).minimize(cross_entropy_net2)
+        train_step_net2 = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy_net2)
 
         pred_net2 = tf.nn.top_k(ynet2, 1)
 
@@ -133,7 +127,7 @@ with tf.name_scope("Layer4_encoder_net2"):
         mse_loss_hetero_net2 = tf.reduce_mean(tf.square(y_net2_auto_hetero - ynet2))
 
     with tf.name_scope("train_hetero_net2"):
-        train_step_hetero_auto_net2 = tf.train.AdamOptimizer(learning_rate=learning_rate_decay__auto_hetero_net2).minimize(mse_loss_hetero_net2)
+        train_step_hetero_auto_net2 = tf.train.AdamOptimizer(learning_rate=learning_rate_decay_net2).minimize(mse_loss_hetero_net2)
 
 
 
@@ -156,7 +150,7 @@ with tf.name_scope("Layer4_auto_net2"):
         mse_loss_net2 = tf.reduce_mean(tf.square(x_net2 - activation_l4_auto_net2))
 
     with tf.name_scope("train_auto_net2"):
-        train_step_auto_net2 = tf.train.AdamOptimizer(learning_rate=learning_rate_decay__auto_net2).minimize(mse_loss_net2)
+        train_step_auto_net2 = tf.train.AdamOptimizer(learning_rate=learning_rate_decay_net2).minimize(mse_loss_net2)
 
 ############################# >>>>   THE END of  NET 2   <<<<<<<< ##########################
 
@@ -257,64 +251,26 @@ with tf.Session() as sess:
             # batch_x, batch_y = mnist.train.next_batch(10000)
 
 
-            # if(j%10==0):
+            if(j%5==0):
+                batch_x= Xdata_9_train[j*1%5454:(j+1)*1%5454]
+                batch_y= ydata_9_train[j*1%5454:(j+1)*1%5454]
 
-            for o in range(2):
+                _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y,learning_rate_decay_net2: 0.000001 })
+
+
+            ##################### >>>> TEST NET2 Pseudo examples generation  <<<<  #############################
+            # noise = np.array(np.random.random((1,784)))
+            # for h in range(2*i):
+                # for l in range(10000):
+                #
+                #    auto,out_net1 = sess.run([activation_l4_auto,y], feed_dict={x: noise})
+                #    noise = np.array(auto)
+            #
+
+
+            for k in range (50):
                 noise = np.array(np.random.random((1, 784)))
-
-                for l in range(1, 1000):
-                    auto_pe, out_net1_pe = sess.run([activation_l4_auto, y], feed_dict={x: noise})
-                    noise = np.array(auto_pe)
-
-                batch_x = auto_pe
-                batch_y = out_net1_pe
-                _, _, loss_hetero_, loss_auto_ = sess.run([train_step_hetero_auto_net2,
-                                                           train_step_auto_net2,
-                                                           mse_loss_net2,
-                                                           mse_loss_hetero_net2],
-                                                          feed_dict={x_net2: batch_x,
-                                                                     y_net2_auto_hetero: batch_y,
-                                                                     learning_rate_decay__auto_hetero_net2: 0.0001,
-                                                                     learning_rate_decay__auto_net2: 0.0001})
-
-
-            batch_x= Xdata_9_train[j*1%5454:(j+1)*1%5454]
-            batch_y= ydata_9_train[j*1%5454:(j+1)*1%5454]
-
-            _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2],
-                                                    feed_dict={x_net2: batch_x,y_net2: batch_y,learning_rate_decay_net2 :  0.001,learning_rate_decay__auto_net2: 0.001 })
-
-
-            batch_x = Xdata_no9_test
-            batch_y = ydata_no9_test
-            acc_no_9 = sess.run(accuracy_net2, feed_dict={x_net2: batch_x, y_net2: batch_y})
-            for o in range(2):
-                noise = np.array(np.random.random((1, 784)))
-
-                for l in range(1, 1000):
-                    auto_pe, out_net1_pe = sess.run([activation_l4_auto, y], feed_dict={x: noise})
-                    noise = np.array(auto_pe)
-
-                batch_x = auto_pe
-                batch_y = out_net1_pe
-                _, _, loss_hetero_, loss_auto_ = sess.run([train_step_hetero_auto_net2,
-                                                           train_step_auto_net2,
-                                                           mse_loss_net2,
-                                                           mse_loss_hetero_net2],
-                                                          feed_dict={x_net2: batch_x,
-                                                                     y_net2_auto_hetero: batch_y,
-                                                                     learning_rate_decay__auto_hetero_net2: 0.001,
-                                                                     learning_rate_decay__auto_net2: 0.001})
-
-
-            k=0
-            while (acc_no_9<0.9):
-                k+=1
-                noise = np.array(np.random.random((1, 784)))
-
-                print("Forgetting!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ", acc_no_9 )
-                m = 10**k
-                for l in range(1,m+1):
+                for l in range(1,40):
                     auto_pe, out_net1_pe = sess.run([activation_l4_auto, y], feed_dict={x: noise})
                     noise = np.array(auto_pe)
 
@@ -327,16 +283,11 @@ with tf.Session() as sess:
                                                           mse_loss_hetero_net2],
                                                           feed_dict={x_net2: batch_x,
                                                                      y_net2_auto_hetero: batch_y,
-                              learning_rate_decay__auto_hetero_net2: 0.0001,learning_rate_decay__auto_net2:0.0001})
+                              learning_rate_decay_net2: (0.0001 )})
 
-                batch_x = Xdata_no9_test
-                batch_y = ydata_no9_test
-                acc_no_9 = sess.run(accuracy_net2, feed_dict={x_net2: batch_x, y_net2: batch_y})
-                print(" [",k,"] examples =", i, " -> Accuracy 0-8 n° examples images = ", acc_no_9)
+                # print('Step %i: Minibatch Loss  Auto_Hetero : %f' % (i, loss_auto_))
+                # print('Step %i: Minibatch Loss  Auto: %f' % (i, loss_hetero_))
 
-                print('Step %i: Minibatch Loss  Auto_Hetero : %f' % (i, loss_auto_))
-                print('Step %i: Minibatch Loss  Auto: %f' % (i, loss_hetero_))
-                # acc_no_9 = sess.run(accuracy_net2, feed_dict={x_net2: batch_x, y_net2: batch_y})
 
                ##################### <<<< END NET2 Pseudo examples generation  >>>> ##############################
 
@@ -364,9 +315,8 @@ with tf.Session() as sess:
 
         batch_x = Xdata_no9_test
         batch_y = ydata_no9_test
-        acc_no_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x, y_net2: batch_y})
-        print("  examples =", i, " -> Accuracy 0-8 n° examples images = ", acc_no_9)
-
+        acc_no_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y})
+        print("  examples =" ,i ," -> Accuracy 0-8 n° examples images = ",acc_no_9)
 
 
         acc_plot_no_9.append(acc_no_9)
@@ -389,7 +339,7 @@ with tf.Session() as sess:
     plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
     plt.xlabel('N° Examples')
     plt.ylabel('Accuracy ')
-    plt.title('Catastrophic forgetting, 1 Hidden Layer with 784 neurons')
+    plt.title('CF, img%5, 50 1* PE*20iter, LR = 0.000001, 1 HL  784 n ')
     plt.legend()
     plt.show()
 
