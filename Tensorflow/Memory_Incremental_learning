@@ -251,11 +251,11 @@ with tf.Session() as sess:
             # batch_x, batch_y = mnist.train.next_batch(10000)
 
 
-            if(j%5==0):
-                batch_x= Xdata_9_train[j*1%5454:(j+1)*1%5454]
-                batch_y= ydata_9_train[j*1%5454:(j+1)*1%5454]
+            # if(j%5==0):
+            batch_x= Xdata_9_train[j*1%5454:(j+1)*1%5454]
+            batch_y= ydata_9_train[j*1%5454:(j+1)*1%5454]
 
-                _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y,learning_rate_decay_net2: 0.000001 })
+            _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y,learning_rate_decay_net2: 0.000001 })
 
 
             ##################### >>>> TEST NET2 Pseudo examples generation  <<<<  #############################
@@ -268,9 +268,9 @@ with tf.Session() as sess:
             #
 
 
-            for k in range (50):
+            for k in range (2 * i):
                 noise = np.array(np.random.random((1, 784)))
-                for l in range(1,40):
+                for l in range(2 * i):
                     auto_pe, out_net1_pe = sess.run([activation_l4_auto, y], feed_dict={x: noise})
                     noise = np.array(auto_pe)
 
