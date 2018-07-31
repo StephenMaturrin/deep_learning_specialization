@@ -259,13 +259,13 @@ with tf.Session() as sess:
 
 
             ##################### >>>> TEST NET2 Pseudo examples generation  <<<<  #############################
-            # noise = np.array(np.random.random((1,784)))
-            # for h in range(2*i):
-                # for l in range(10000):
-                #
-                #    auto,out_net1 = sess.run([activation_l4_auto,y], feed_dict={x: noise})
-                #    noise = np.array(auto)
-            #
+            noise = np.array(np.random.random((1,784)))
+            for h in range(2*i):
+                for l in range(100):
+
+                   auto,out_net1 = sess.run([activation_l4_auto,y], feed_dict={x: noise})
+                   noise = np.array(auto)
+
 
 
             for k in range (2 * i):
