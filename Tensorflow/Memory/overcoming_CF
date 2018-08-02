@@ -6,7 +6,8 @@ import argparse
 import sys
 from matplotlib import pyplot as plt
 from tensorflow.examples.tutorials.mnist import input_data
-
+import pandas as pd
+import numpy as np
 import tensorflow as tf
 
 FLAGS = None
@@ -77,7 +78,7 @@ with tf.name_scope("Layer4_auto"):
 
 
 y_net2 = tf.placeholder(tf.int64, [None])
-y_net2_auto_hetero = tf.placeholder(tf.float32, shape=(1,10))
+y_net2_auto_hetero = tf.placeholder(tf.float32, shape=(None, 10))
 
 # Create the model
 x_net2 = tf.placeholder(shape=(None, n_layers[0]), name="x_net2", dtype=tf.float32)
@@ -211,125 +212,148 @@ with tf.Session() as sess:
 
 
     ##################### >>>> TRANSFER <<<<  ##############################
+    iter_PE = [1,10,100,200]
 
-    for i in range(0,100):
+    acc_no_9_10R = [[] for i in range(4)]
+    acc_9_10R = [[] for i in range(4)]
+    n_ex_plot_10R= [[] for i in range(4)]
 
-
-        batch_x, batch_y = mnist.test.next_batch(1)
-
-        _, _, W_1, W_4_hetero, W_4_auto, b1, b4_hetero, b1_auto = sess.run(
-            [activation_l4_auto, pred, weight1, weight4, weight4_auto, bias1, bias4, bias4_auto],
-            feed_dict={x: batch_x, y_: batch_y})
-
-        sess.run(
-            (tf.assign(weight1_net2, W_1), tf.assign(weight4_net2, W_4_hetero), tf.assign(weight4_auto_net2, W_4_auto)))
-
-        sess.run((tf.assign(bias1_net2, b1), tf.assign(bias4_net2, b4_hetero), tf.assign(bias4_auto_net2, b1_auto)))
+    X_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/X_dataset_100R.csv", sep=',', header=None)
+    Y_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/Y_dataset_100R.csv", sep=',', header=None)
+    X_PE = pd.DataFrame(X_PE)
+    Y_PE = pd.DataFrame(Y_PE)
 
 
-        batch_x = Xdata_no9_test[0:1000]
-        batch_y = ydata_no9_test[0:1000]
+    for m in range(4):
 
-        hetero, acc = sess.run([pred_net2, accuracy_net2], feed_dict={x_net2: batch_x, y_net2: batch_y})
-        print(" Check Accurancy NET2 0 -> 8 ", acc)
-
-        batch_x = Xdata_9_test[0:1000]
-        batch_y = ydata_9_test[0:1000]
-        hetero, acc = sess.run([pred_net2, accuracy_net2], feed_dict={x_net2: batch_x, y_net2: batch_y})
-        print(" Check 9  in NET2 (should be 0) ", acc)
-        print("<<<<<<<<<<<  START  >>>>>>>>>>>> ")
-        print("\n","\n")
-        #################### <<<< END TRANSFER >>>>  ##############################
-
-        ##################### >>>> NET1 learning 9  <<<<  ##############################
+        for i in range(0,100):
 
 
-        # Training
-        for j in range(i): # Number of images to learn
-            # Prepare Data
-            # Get the next batch of MNIST data (only images are needed, not labels)
-            # batch_x, batch_y = mnist.train.next_batch(10000)
+            batch_x, batch_y = mnist.test.next_batch(1)
+
+            _, _, W_1, W_4_hetero, W_4_auto, b1, b4_hetero, b1_auto = sess.run(
+                [activation_l4_auto, pred, weight1, weight4, weight4_auto, bias1, bias4, bias4_auto],
+                feed_dict={x: batch_x, y_: batch_y})
+
+            sess.run(
+                (tf.assign(weight1_net2, W_1), tf.assign(weight4_net2, W_4_hetero), tf.assign(weight4_auto_net2, W_4_auto)))
+
+            sess.run((tf.assign(bias1_net2, b1), tf.assign(bias4_net2, b4_hetero), tf.assign(bias4_auto_net2, b1_auto)))
 
 
-            # if(j%5==0):
-            batch_x= Xdata_9_train[j*1%5454:(j+1)*1%5454]
-            batch_y= ydata_9_train[j*1%5454:(j+1)*1%5454]
+            batch_x = Xdata_no9_test[0:1000]
+            batch_y = ydata_no9_test[0:1000]
 
-            _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y,learning_rate_decay_net2: 0.000001 })
+            hetero, acc = sess.run([pred_net2, accuracy_net2], feed_dict={x_net2: batch_x, y_net2: batch_y})
+            print(" Check Accurancy NET2 0 -> 8 ", acc)
 
-
-            ##################### >>>> TEST NET2 Pseudo examples generation  <<<<  #############################
-            noise = np.array(np.random.random((1,784)))
-            for h in range(2*i):
-                for l in range(100):
-
-                   auto,out_net1 = sess.run([activation_l4_auto,y], feed_dict={x: noise})
-                   noise = np.array(auto)
+            batch_x = Xdata_9_test[0:1000]
+            batch_y = ydata_9_test[0:1000]
+            hetero, acc = sess.run([pred_net2, accuracy_net2], feed_dict={x_net2: batch_x, y_net2: batch_y})
+            print(" Check 9  in NET2 (should be 0) ", acc)
+            print("<<<<<<<<<<<  START  >>>>>>>>>>>> ")
+            print("\n","\n")
+            #################### <<<< END TRANSFER >>>>  ##############################
 
 
 
-            for k in range (2 * i):
-                noise = np.array(np.random.random((1, 784)))
-                for l in range(2 * i):
-                    auto_pe, out_net1_pe = sess.run([activation_l4_auto, y], feed_dict={x: noise})
-                    noise = np.array(auto_pe)
-
-
-                batch_x = auto_pe
-                batch_y = out_net1_pe
-                _, _, loss_hetero_, loss_auto_ = sess.run([train_step_hetero_auto_net2,
-                                                          train_step_auto_net2,
-                                                          mse_loss_net2,
-                                                          mse_loss_hetero_net2],
-                                                          feed_dict={x_net2: batch_x,
-                                                                     y_net2_auto_hetero: batch_y,
-                              learning_rate_decay_net2: (0.0001 )})
-
-                # print('Step %i: Minibatch Loss  Auto_Hetero : %f' % (i, loss_auto_))
-                # print('Step %i: Minibatch Loss  Auto: %f' % (i, loss_hetero_))
-
-
-               ##################### <<<< END NET2 Pseudo examples generation  >>>> ##############################
+            ##################### >>>> LOAD PE * 10 R  <<<<  ##############################
 
 
 
 
 
 
-
-            # Display logs per step
-            # print('Step %i: Minibatch Loss  Auto learning 9 : %f' % (j, loss_auto_))
-            # print('Step %i: Minibatch Loss  Hetero learning 9: %f' % (j, loss_hetero_))
-
-        # Testing HETERO 9
+            ##################### >>>> NET1 learning 9  <<<<  ##############################
 
 
-        batch_x = Xdata_9_test
-        batch_y = ydata_9_test
 
 
-        # batch_x, batch_y = mnist.test.next_batch(10000)
-
-        acc_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y})
-        print(" examples = " ,i ," -> Accurancy learning 9 n° examples images = ",acc_9)
-
-        batch_x = Xdata_no9_test
-        batch_y = ydata_no9_test
-        acc_no_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y})
-        print("  examples =" ,i ," -> Accuracy 0-8 n° examples images = ",acc_no_9)
+            # Training
+            for j in range(i): # Number of images to learn
+                # Prepare Data
+                # Get the next batch of MNIST data (only images are needed, not labels)
+                # batch_x, batch_y = mnist.train.next_batch(10000)
 
 
-        acc_plot_no_9.append(acc_no_9)
-        acc_plot_9.append(acc_9)
-        n_ex_plot.append(i)
+                # if(j%5==0):
+                batch_x= Xdata_9_train[j*1%5454:(j+1)*1%5454]
+                batch_y= ydata_9_train[j*1%5454:(j+1)*1%5454]
+
+                _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y,learning_rate_decay_net2: 0.000001 })
+
+
+                ##################### >>>> TEST NET2 Pseudo examples generation  <<<<  #############################
+                # noise = np.array(np.random.random((1,784)))
+                # for h in range(2*i):
+                #     for l in range(100):
+                #
+                #        auto,out_net1 = sess.run([activation_l4_auto,y], feed_dict={x: noise})
+                #        noise = np.array(auto)
+
+
+
+                for k in range (int(iter_PE[m])):
+
+
+                    batch_x = np.array(X_PE.sample(int(iter_PE[m])))#.reshape((1, 784))
+                    batch_y = np.array(Y_PE.sample(int(iter_PE[m])))#.reshape((1, 10))
+                    _, _, loss_hetero_, loss_auto_ = sess.run([train_step_hetero_auto_net2,
+                                                              train_step_auto_net2,
+                                                              mse_loss_net2,
+                                                              mse_loss_hetero_net2],
+                                                              feed_dict={x_net2: batch_x,
+                                                                         y_net2_auto_hetero: batch_y,
+                                  learning_rate_decay_net2: (0.0001 )})
+
+                    # print('Step %i: Minibatch Loss  Auto_Hetero : %f' % (i, loss_auto_))
+                    # print('Step %i: Minibatch Loss  Auto: %f' % (i, loss_hetero_))
+
+
+                   ##################### <<<< END NET2 Pseudo examples generation  >>>> ##############################
+
+
+
+
+
+
+
+                # Display logs per step
+                # print('Step %i: Minibatch Loss  Auto learning 9 : %f' % (j, loss_auto_))
+                # print('Step %i: Minibatch Loss  Hetero learning 9: %f' % (j, loss_hetero_))
+
+            # Testing HETERO 9
+
+
+            batch_x = Xdata_9_test
+            batch_y = ydata_9_test
+
+
+            # batch_x, batch_y = mnist.test.next_batch(10000)
+
+            acc_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y})
+            print(" examples = " ,i ," -> Accurancy learning 9 n° examples images = ",acc_9)
+
+            batch_x = Xdata_no9_test
+            batch_y = ydata_no9_test
+            acc_no_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y})
+            print("  examples =" ,i ," -> Accuracy 0-8 n° examples images = ",acc_no_9)
+
+            acc_no_9_10R[m].append(acc_no_9)
+            acc_9_10R[m].append(acc_9)
+            n_ex_plot_10R[m].append(i)
+            # n_ex_plot_10R[m].append(i)
+            # acc_plot_no_9.append(acc_no_9)
+            # acc_plot_9.append(acc_9)
+            # n_ex_plot.append(i)
 
     # sess.close()
 
 
 
-
-    plt.plot(n_ex_plot, acc_plot_no_9, label = "Accuracy test (0-8) N: iter %i" % 1)
-    plt.plot(n_ex_plot, acc_plot_9, label="Accuracy test 9 N: iter %i" % 1)
+    plt.subplot(221)
+    plt.plot(n_ex_plot_10R[0],  acc_no_9_10R[0], label = "Accuracy test (0-8) N: iter %i" % 1)
+    plt.plot(n_ex_plot_10R[0], acc_9_10R[0], label="Accuracy test 9 N: iter %i" % 1)
     plt.grid(which='both')
     major_ticks = np.arange(0, 100, 10)
     minor_ticks = np.arange(0, 1, 0.1)
@@ -339,7 +363,54 @@ with tf.Session() as sess:
     plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
     plt.xlabel('N° Examples')
     plt.ylabel('Accuracy ')
-    plt.title('CF, img%5, 50 1* PE*20iter, LR = 0.000001, 1 HL  784 n ')
+    plt.title('1 * PE 200R')
     plt.legend()
+
+    plt.subplot(222)
+    plt.plot(n_ex_plot_10R[1], acc_no_9_10R[1], label="Accuracy test (0-8) N: iter %i" % 1)
+    plt.plot(n_ex_plot_10R[1], acc_9_10R[1], label="Accuracy test 9 N: iter %i" % 1)
+    plt.grid(which='both')
+    major_ticks = np.arange(0, 100, 10)
+    minor_ticks = np.arange(0, 1, 0.1)
+    plt.xticks(major_ticks)
+    plt.yticks(minor_ticks)
+    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.xlabel('N° Examples')
+    plt.ylabel('Accuracy ')
+    plt.title('10 * PE 200R')
+    plt.legend()
+
+    plt.subplot(223)
+    plt.plot(n_ex_plot_10R[2], acc_no_9_10R[2], label="Accuracy test (0-8) N: iter %i" % 1)
+    plt.plot(n_ex_plot_10R[2], acc_9_10R[2], label="Accuracy test 9 N: iter %i" % 1)
+    plt.grid(which='both')
+    major_ticks = np.arange(0, 100, 10)
+    minor_ticks = np.arange(0, 1, 0.1)
+    plt.xticks(major_ticks)
+    plt.yticks(minor_ticks)
+    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.xlabel('N° Examples')
+    plt.ylabel('Accuracy ')
+    plt.title('100 * PE 200R')
+    plt.legend()
+
+    plt.subplot(224)
+    plt.plot(n_ex_plot_10R[3], acc_no_9_10R[3], label="Accuracy test (0-8) N: iter %i" % 1)
+    plt.plot(n_ex_plot_10R[3], acc_9_10R[3], label="Accuracy test 9 N: iter %i" % 1)
+    plt.grid(which='both')
+    major_ticks = np.arange(0, 100, 10)
+    minor_ticks = np.arange(0, 1, 0.1)
+    plt.xticks(major_ticks)
+    plt.yticks(minor_ticks)
+    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.xlabel('N° Examples')
+    plt.ylabel('Accuracy ')
+    plt.title('200 * PE* 200R ')
+    plt.legend()
+
+
     plt.show()
 
