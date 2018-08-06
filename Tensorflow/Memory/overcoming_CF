@@ -212,14 +212,14 @@ with tf.Session() as sess:
 
 
     ##################### >>>> TRANSFER <<<<  ##############################
-    iter_PE = [1,10,100,200]
+    iter_PE = [200,400,800,1000]
 
     acc_no_9_10R = [[] for i in range(4)]
     acc_9_10R = [[] for i in range(4)]
     n_ex_plot_10R= [[] for i in range(4)]
 
-    X_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/X_dataset_100R.csv", sep=',', header=None)
-    Y_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/Y_dataset_100R.csv", sep=',', header=None)
+    X_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/X_dataset_1000R.csv", sep=',', header=None)
+    Y_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/Y_dataset_1000R.csv", sep=',', header=None)
     X_PE = pd.DataFrame(X_PE)
     Y_PE = pd.DataFrame(Y_PE)
 
@@ -267,10 +267,11 @@ with tf.Session() as sess:
             ##################### >>>> NET1 learning 9  <<<<  ##############################
 
 
-
+            print("1000R 200->1000  learning 9")
 
             # Training
             for j in range(i): # Number of images to learn
+                # print("learning 9")
                 # Prepare Data
                 # Get the next batch of MNIST data (only images are needed, not labels)
                 # batch_x, batch_y = mnist.train.next_batch(10000)
@@ -295,9 +296,10 @@ with tf.Session() as sess:
 
                 for k in range (int(iter_PE[m])):
 
-
-                    batch_x = np.array(X_PE.sample(int(iter_PE[m])))#.reshape((1, 784))
-                    batch_y = np.array(Y_PE.sample(int(iter_PE[m])))#.reshape((1, 10))
+                    # print(Y_PE.sample(1))
+                    index = Y_PE.sample(1).index
+                    batch_x = np.array(X_PE.iloc[index])#.reshape((1, 784))
+                    batch_y = np.array(Y_PE.iloc[index])#.reshape((1, 10))
                     _, _, loss_hetero_, loss_auto_ = sess.run([train_step_hetero_auto_net2,
                                                               train_step_auto_net2,
                                                               mse_loss_net2,
@@ -363,7 +365,7 @@ with tf.Session() as sess:
     plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
     plt.xlabel('N° Examples')
     plt.ylabel('Accuracy ')
-    plt.title('1 * PE 200R')
+    plt.title('200 * PE  batch =1 1000R')
     plt.legend()
 
     plt.subplot(222)
@@ -378,7 +380,7 @@ with tf.Session() as sess:
     plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
     plt.xlabel('N° Examples')
     plt.ylabel('Accuracy ')
-    plt.title('10 * PE 200R')
+    plt.title('400 * PE  batch =1 1000R')
     plt.legend()
 
     plt.subplot(223)
@@ -393,7 +395,7 @@ with tf.Session() as sess:
     plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
     plt.xlabel('N° Examples')
     plt.ylabel('Accuracy ')
-    plt.title('100 * PE 200R')
+    plt.title('800 * PE batch =1 1000R')
     plt.legend()
 
     plt.subplot(224)
@@ -408,7 +410,7 @@ with tf.Session() as sess:
     plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
     plt.xlabel('N° Examples')
     plt.ylabel('Accuracy ')
-    plt.title('200 * PE* 200R ')
+    plt.title('1000 * PE  batch =1   1000R ')
     plt.legend()
 
 
