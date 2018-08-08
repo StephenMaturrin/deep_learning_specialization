@@ -1,0 +1,418 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+import numpy as np
+import argparse
+import sys
+from matplotlib import pyplot as plt
+from tensorflow.examples.tutorials.mnist import input_data
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+
+FLAGS = None
+learning_rate = 0.001
+n_layers = [784, 784, 784]
+
+# Import data
+mnist = input_data.read_data_sets("/tmp/tensorflow/mnist/input_data")
+y_ = tf.placeholder(tf.int64, [None])
+
+# Create the model
+x = tf.placeholder(shape=(None, n_layers[0]), name="x", dtype=tf.float32)
+
+learning_rate_decay = tf.placeholder(dtype=tf.float64)
+
+####################>>> LAYER 1  NET 1 <<<##########################
+
+with tf.name_scope("Layer1_encoder"):
+    weight1 = tf.get_variable("W1", shape=(n_layers[0], n_layers[1]), initializer=tf.glorot_uniform_initializer())
+    tf.summary.histogram("W1", weight1)
+    bias1 = tf.Variable(tf.zeros(shape=(1, n_layers[1])), name='B1')
+
+    with tf.name_scope("PreActivation_layer1"):
+        pre_activation_l1 = tf.add(tf.matmul(x, weight1), bias1)
+
+    with tf.name_scope("Activation_layer1"):
+        activation_l1 = tf.nn.elu(pre_activation_l1)
+
+####################>>> LAYER 4 HETERO  NET 1  <<<##########################
+with tf.name_scope("Layer4_encoder"):
+    weight4 = tf.get_variable("W4", shape=(n_layers[1], 10), initializer=tf.glorot_uniform_initializer())
+    tf.summary.histogram("W4", weight4)
+    bias4 = tf.Variable(tf.zeros(shape=(1, 10)), name='B4')
+
+    with tf.name_scope("PreActivation_layer4"):
+        y = tf.add(tf.matmul(activation_l1, weight4), bias4)
+
+        cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=y_, logits=y)
+        train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(cross_entropy)
+
+        pred = tf.nn.top_k(y, 1)
+
+    with tf.name_scope("eval"):
+        correct = tf.nn.in_top_k(y, y_, 1)
+        accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
+
+####################>>> LAYER 4 AUTO NET 1 <<<##########################
+
+with tf.name_scope("Layer4_auto"):
+    weight4_auto = tf.get_variable("W4_auto", shape=(n_layers[1], n_layers[2]),
+                                   initializer=tf.glorot_uniform_initializer())
+    tf.summary.histogram("W4_auto", weight4_auto)
+    bias4_auto = tf.Variable(tf.zeros(shape=(1, n_layers[2])), name='B4_auto')
+
+    with tf.name_scope("PreActivation_layer4_auto"):
+        pre_activation_l4_auto = tf.add(tf.matmul(activation_l1, weight4_auto), bias4_auto)
+
+    with tf.name_scope("Activation_layer4_auto"):
+        activation_l4_auto = tf.nn.elu(pre_activation_l4_auto)
+
+    with tf.name_scope("MSE_auto"):
+        mse_loss = tf.reduce_mean(tf.square(x - activation_l4_auto))
+
+    with tf.name_scope("train_auto"):
+        train_step_auto = tf.train.GradientDescentOptimizer(learning_rate=learning_rate).minimize(mse_loss)
+
+############################# >>>>    NET 2   <<<<<<<< ##########################
+
+
+y_net2 = tf.placeholder(tf.int64, [None])
+y_net2_auto_hetero = tf.placeholder(tf.float32, shape=(None, 10))
+
+# Create the model
+x_net2 = tf.placeholder(shape=(None, n_layers[0]), name="x_net2", dtype=tf.float32)
+
+learning_rate_decay_net2 = tf.placeholder(dtype=tf.float64)
+
+####################>>> LAYER 1 NET 2 <<<##########################
+
+with tf.name_scope("Layer1_encoder_net2"):
+    weight1_net2 = tf.get_variable("W1_net2", shape=(n_layers[0], n_layers[1]),
+                                   initializer=tf.glorot_uniform_initializer())
+    tf.summary.histogram("W1_net2", weight1_net2)
+    bias1_net2 = tf.Variable(tf.zeros(shape=(1, n_layers[1])), name='B1_net2')
+
+    with tf.name_scope("PreActivation_layer1_net2"):
+        pre_activation_l1_net2 = tf.add(tf.matmul(x_net2, weight1_net2), bias1_net2)
+
+    with tf.name_scope("Activation_layer1_net2"):
+        activation_l1_net2 = tf.nn.elu(pre_activation_l1_net2)
+
+####################>>> LAYER 4 HETERO NET 2  <<<##########################
+with tf.name_scope("Layer4_encoder_net2"):
+    weight4_net2 = tf.get_variable("W4_net2", shape=(n_layers[1], 10), initializer=tf.glorot_uniform_initializer())
+    tf.summary.histogram("W4_net2", weight4_net2)
+    bias4_net2 = tf.Variable(tf.zeros(shape=(1, 10)), name='B4_net2')
+
+
+    with tf.name_scope("PreActivation_layer4_net2"):
+        ynet2 = tf.add(tf.matmul(activation_l1_net2, weight4_net2), bias4_net2)
+
+        cross_entropy_net2 = tf.losses.sparse_softmax_cross_entropy(labels=y_net2, logits=ynet2)
+        train_step_net2 = tf.train.GradientDescentOptimizer(learning_rate).minimize(cross_entropy_net2)
+
+        pred_net2 = tf.nn.top_k(ynet2, 1)
+
+    with tf.name_scope("eval_net2"):
+        correct_net2 = tf.nn.in_top_k(ynet2, y_net2, 1)
+        accuracy_net2 = tf.reduce_mean(tf.cast(correct_net2, tf.float32))
+
+    # mse_loss_hetero_net2 = tf.losses.softmax_cross_entropy(onehot_labels=y_net2_auto_hetero, logits=ynet2)
+    # train_step_hetero_auto_net2 = tf.train.GradientDescentOptimizer(learning_rate).minimize(mse_loss_hetero_net2)
+
+    with tf.name_scope("Activation_layer4_hetero_net2"):
+        activation_l4_hetero_net2 = tf.nn.elu(ynet2)
+
+    with tf.name_scope("MSE_hetero_net2"):
+        mse_loss_hetero_net2 = tf.reduce_mean(tf.square(y_net2_auto_hetero - ynet2))
+
+    with tf.name_scope("train_hetero_net2"):
+        train_step_hetero_auto_net2 = tf.train.GradientDescentOptimizer(learning_rate=learning_rate_decay_net2).minimize(mse_loss_hetero_net2)
+
+
+
+
+####################>>> LAYER 4 AUTO NET 2 <<<##########################
+
+with tf.name_scope("Layer4_auto_net2"):
+    weight4_auto_net2 = tf.get_variable("W4_auto_net2", shape=(n_layers[1], n_layers[2]),
+                                        initializer=tf.glorot_uniform_initializer())
+    tf.summary.histogram("W4_auto_net2", weight4_auto_net2)
+    bias4_auto_net2 = tf.Variable(tf.zeros(shape=(1, n_layers[2])), name='B4_auto_net2')
+
+    with tf.name_scope("PreActivation_layer4_auto_net2"):
+        pre_activation_l4_auto_net2 = tf.add(tf.matmul(activation_l1_net2, weight4_auto_net2), bias4_auto_net2)
+
+    with tf.name_scope("Activation_layer4_auto_net2"):
+        activation_l4_auto_net2 = tf.nn.elu(pre_activation_l4_auto_net2)
+
+    with tf.name_scope("MSE_auto_net2"):
+        mse_loss_net2 = tf.reduce_mean(tf.square(x_net2 - activation_l4_auto_net2))
+
+    with tf.name_scope("train_auto_net2"):
+        train_step_auto_net2 = tf.train.GradientDescentOptimizer(learning_rate=learning_rate_decay_net2).minimize(mse_loss_net2)
+
+############################# >>>>   THE END of  NET 2   <<<<<<<< ##########################
+
+
+
+############################# >>>>   TRAINING   <<<<<<<< ##########################
+acc_plot_9 = []
+n_ex_plot = []
+acc_plot_no_9 = []
+
+test_forgetting = {}
+forgetting = []
+Xdata_9_train = np.array([x for (x, y) in zip(mnist.train.images, mnist.train.labels) if y == 9])
+ydata_9_train = [y for y in mnist.train.labels if y == 9]
+
+
+Xdata_9_test = np.array([x for (x, y) in zip(mnist.test.images, mnist.test.labels) if y == 9])
+ydata_9_test = [y for y in mnist.test.labels if y == 9]
+
+
+Xdata_no9_test = np.array([x for (x, y) in zip(mnist.test.images, mnist.test.labels) if y != 9])
+ydata_no9_test = [y for y in mnist.test.labels if y != 9]
+
+Xdata_no9_train = np.array([x for (x, y) in zip(mnist.train.images, mnist.train.labels) if y != 9])
+ydata_no9_train = [y for y in mnist.train.labels if y != 9]
+
+sess = tf.InteractiveSession()
+
+with tf.Session() as sess:
+    tf.global_variables_initializer().run()
+
+
+
+    for i in range(1000):
+        # Prepare Data
+        # Get the next batch of MNIST data (only images are needed, not labels)
+        # batch_x, batch_y = mnist.train.next_batch(256)
+
+        # 49556
+        batch_x= Xdata_no9_train[i*256%49556:(i+1)*256%49556]
+        batch_y= ydata_no9_train[i*256%49556:(i+1)*256%49556]
+
+        _,_,loss_hetero_, loss_auto_ = sess.run([train_step,train_step_auto, mse_loss,cross_entropy], feed_dict={x: batch_x,y_: batch_y,learning_rate_decay: (learning_rate/(1+0.0001*i)) })
+        if i % 100 == 0 or i == 1:
+            print('Step %i: Minibatch Loss  Auto : %f' % (i, loss_auto_))
+            print('Step %i: Minibatch Loss  Hetero: %f' % (i, loss_hetero_))
+    # Testing HETERO
+
+
+    batch_x = Xdata_no9_test[0:1000]
+    batch_y = ydata_no9_test[0:1000]
+
+
+    # batch_x, batch_y = mnist.test.next_batch(1000)
+
+    hetero,acc = sess.run([pred,accuracy], feed_dict={x: batch_x,y_: batch_y})
+    print("Accurancy NET 1 0 -> 8 ", acc)
+
+
+    ##################### >>>> TRANSFER <<<<  ##############################
+    iter_PE = [1,1,1,1]
+
+    acc_no_9_10R = [[] for i in range(4)]
+    acc_9_10R = [[] for i in range(4)]
+    n_ex_plot_10R= [[] for i in range(4)]
+
+    X_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/X_dataset_10000R.csv", sep=',', header=None)
+    Y_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/Y_dataset_10000R.csv", sep=',', header=None)
+    X_PE = pd.DataFrame(X_PE)
+    Y_PE = pd.DataFrame(Y_PE)
+
+
+    for m in range(1):
+
+        for i in range(0,100):
+
+
+            batch_x, batch_y = mnist.test.next_batch(1)
+
+            _, _, W_1, W_4_hetero, W_4_auto, b1, b4_hetero, b1_auto = sess.run(
+                [activation_l4_auto, pred, weight1, weight4, weight4_auto, bias1, bias4, bias4_auto],
+                feed_dict={x: batch_x, y_: batch_y})
+
+            sess.run(
+                (tf.assign(weight1_net2, W_1), tf.assign(weight4_net2, W_4_hetero), tf.assign(weight4_auto_net2, W_4_auto)))
+
+            sess.run((tf.assign(bias1_net2, b1), tf.assign(bias4_net2, b4_hetero), tf.assign(bias4_auto_net2, b1_auto)))
+
+
+            batch_x = Xdata_no9_test[0:1000]
+            batch_y = ydata_no9_test[0:1000]
+
+            hetero, acc = sess.run([pred_net2, accuracy_net2], feed_dict={x_net2: batch_x, y_net2: batch_y})
+            print(" Check Accurancy NET2 0 -> 8 ", acc)
+
+            batch_x = Xdata_9_test[0:1000]
+            batch_y = ydata_9_test[0:1000]
+            hetero, acc = sess.run([pred_net2, accuracy_net2], feed_dict={x_net2: batch_x, y_net2: batch_y})
+            print(" Check 9  in NET2 (should be 0) ", acc)
+            print("<<<<<<<<<<<  START  >>>>>>>>>>>> ")
+            print("\n","\n")
+            #################### <<<< END TRANSFER >>>>  ##############################
+
+
+
+            ##################### >>>> LOAD PE * 10 R  <<<<  ##############################
+
+
+
+
+
+
+            ##################### >>>> NET1 learning 9  <<<<  ##############################
+
+
+            print("1000R 200->1000  learning 9")
+
+            # Training
+            for j in range(i): # Number of images to learn
+                # print("learning 9")
+                # Prepare Data
+                # Get the next batch of MNIST data (only images are needed, not labels)
+                # batch_x, batch_y = mnist.train.next_batch(10000)
+
+
+                # if(j%5==0):
+                batch_x= Xdata_9_train[j*1%5454:(j+1)*1%5454]
+                batch_y= ydata_9_train[j*1%5454:(j+1)*1%5454]
+
+                _,_,loss_hetero_, loss_auto_ = sess.run([train_step_net2,train_step_auto_net2, mse_loss_net2,cross_entropy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y,learning_rate_decay_net2: 0.000001 })
+
+
+                ##################### >>>> TEST NET2 Pseudo examples generation  <<<<  #############################
+                # noise = np.array(np.random.random((1,784)))
+                # for h in range(2*i):
+                #     for l in range(100):
+                #
+                #        auto,out_net1 = sess.run([activation_l4_auto,y], feed_dict={x: noise})
+                #        noise = np.array(auto)
+
+
+
+                for k in range (100):
+
+                    # print(Y_PE.sample(1))
+                    index = Y_PE.sample(1).index
+                    batch_x = np.array(X_PE.iloc[index])#.reshape((1, 784))
+                    batch_y = np.array(Y_PE.iloc[index])#.reshape((1, 10))
+                    _, _, loss_hetero_, loss_auto_ = sess.run([train_step_hetero_auto_net2,
+                                                              train_step_auto_net2,
+                                                              mse_loss_net2,
+                                                              mse_loss_hetero_net2],
+                                                              feed_dict={x_net2: batch_x,
+                                                                         y_net2_auto_hetero: batch_y,
+                                  learning_rate_decay_net2: (0.0001 )})
+
+                    # print('Step %i: Minibatch Loss  Auto_Hetero : %f' % (i, loss_auto_))
+                    # print('Step %i: Minibatch Loss  Auto: %f' % (i, loss_hetero_))
+
+
+                   ##################### <<<< END NET2 Pseudo examples generation  >>>> ##############################
+
+
+
+
+
+
+
+                # Display logs per step
+                # print('Step %i: Minibatch Loss  Auto learning 9 : %f' % (j, loss_auto_))
+                # print('Step %i: Minibatch Loss  Hetero learning 9: %f' % (j, loss_hetero_))
+
+            # Testing HETERO 9
+
+
+            batch_x = Xdata_9_test
+            batch_y = ydata_9_test
+
+
+            # batch_x, batch_y = mnist.test.next_batch(10000)
+
+            acc_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y})
+            print(" examples = " ,i ," -> Accurancy learning 9 n° examples images = ",acc_9)
+
+            batch_x = Xdata_no9_test
+            batch_y = ydata_no9_test
+            acc_no_9 = sess.run([accuracy_net2], feed_dict={x_net2: batch_x,y_net2: batch_y})
+            print("  examples =" ,i ," -> Accuracy 0-8 n° examples images = ",acc_no_9)
+
+            acc_no_9_10R[m].append(acc_no_9)
+            acc_9_10R[m].append(acc_9)
+            n_ex_plot_10R[m].append(i)
+            # n_ex_plot_10R[m].append(i)
+            # acc_plot_no_9.append(acc_no_9)
+            # acc_plot_9.append(acc_9)
+            # n_ex_plot.append(i)
+
+    # sess.close()
+
+
+
+    plt.subplot(221)
+    plt.plot(n_ex_plot_10R[0],  acc_no_9_10R[0], label = "Accuracy test (0-8) N: iter %i" % 1)
+    plt.plot(n_ex_plot_10R[0], acc_9_10R[0], label="Accuracy test 9 N: iter %i" % 1)
+    plt.grid(which='both')
+    major_ticks = np.arange(0, 100, 10)
+    minor_ticks = np.arange(0, 1, 0.1)
+    plt.xticks(major_ticks)
+    plt.yticks(minor_ticks)
+    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    plt.xlabel('N° Examples')
+    plt.ylabel('Accuracy ')
+    plt.title('2*i * PE  batch =1 200R')
+    plt.legend()
+
+    # plt.subplot(222)
+    # plt.plot(n_ex_plot_10R[1], acc_no_9_10R[1], label="Accuracy test (0-8) N: iter %i" % 1)
+    # plt.plot(n_ex_plot_10R[1], acc_9_10R[1], label="Accuracy test 9 N: iter %i" % 1)
+    # plt.grid(which='both')
+    # major_ticks = np.arange(0, 100, 10)
+    # minor_ticks = np.arange(0, 1, 0.1)
+    # plt.xticks(major_ticks)
+    # plt.yticks(minor_ticks)
+    # plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.xlabel('N° Examples')
+    # plt.ylabel('Accuracy ')
+    # plt.title('2*i * PE  batch =1 200R')
+    # plt.legend()
+    #
+    # plt.subplot(223)
+    # plt.plot(n_ex_plot_10R[2], acc_no_9_10R[2], label="Accuracy test (0-8) N: iter %i" % 1)
+    # plt.plot(n_ex_plot_10R[2], acc_9_10R[2], label="Accuracy test 9 N: iter %i" % 1)
+    # plt.grid(which='both')
+    # major_ticks = np.arange(0, 100, 10)
+    # minor_ticks = np.arange(0, 1, 0.1)
+    # plt.xticks(major_ticks)
+    # plt.yticks(minor_ticks)
+    # plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.xlabel('N° Examples')
+    # plt.ylabel('Accuracy ')
+    # plt.title('2*i * PE batch =1 200R')
+    # plt.legend()
+    #
+    # plt.subplot(224)
+    # plt.plot(n_ex_plot_10R[3], acc_no_9_10R[3], label="Accuracy test (0-8) N: iter %i" % 1)
+    # plt.plot(n_ex_plot_10R[3], acc_9_10R[3], label="Accuracy test 9 N: iter %i" % 1)
+    # plt.grid(which='both')
+    # major_ticks = np.arange(0, 100, 10)
+    # minor_ticks = np.arange(0, 1, 0.1)
+    # plt.xticks(major_ticks)
+    # plt.yticks(minor_ticks)
+    # plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.xlabel('N° Examples')
+    # plt.ylabel('Accuracy ')
+    # plt.title('2*i * PE  batch =1   200R ')
+    # plt.legend()
+    #
+
+    plt.show()
+
