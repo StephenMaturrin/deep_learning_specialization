@@ -185,14 +185,14 @@ with tf.Session() as sess:
 
 
 
-    for i in range(10000):
+    for i in range(15000):
         # Prepare Data
         # Get the next batch of MNIST data (only images are needed, not labels)
         # batch_x, batch_y = mnist.train.next_batch(256)
 
         # 49556
-        batch_x= Xdata_no9_train[i*256%49556:(i+1)*256%49556]
-        batch_y= ydata_no9_train[i*256%49556:(i+1)*256%49556]
+        batch_x= Xdata_no9_train[i*512%49556:(i+1)*512%49556]
+        batch_y= ydata_no9_train[i*512%49556:(i+1)*512%49556]
 
         _,_,loss_hetero_, loss_auto_ = sess.run([train_step,train_step_auto, mse_loss,cross_entropy], feed_dict={x: batch_x,y_: batch_y,learning_rate_decay: (learning_rate/(1+0.00001*i)) })
         if i % 100 == 0 or i == 1:
@@ -212,21 +212,43 @@ with tf.Session() as sess:
 
 
     ##################### >>>> TRANSFER <<<<  ##############################
-    iter_PE = [1,10,50,100]
+    iter_PE = [1,4,10,20]
 
     acc_no_9_10R = [[] for i in range(4)]
     acc_9_10R = [[] for i in range(4)]
     n_ex_plot_10R= [[] for i in range(4)]
+    path_X = ["/home/tmpext4/ms255613/memory/dataset/X_dataset_10R.csv"
+              # "/home/tmpext4/ms255613/memory/dataset/X_dataset_1R.csv",
+              # "/home/tmpext4/ms255613/memory/dataset/X_dataset_10R.csv",
+              # # "/home/tmpext4/ms255613/memory/dataset/X_dataset_100R.csv",
+              # "/home/tmpext4/ms255613/memory/dataset/X_dataset_201R.csv",
+              # # "/home/tmpext4/ms255613/memory/dataset/X_dataset_1000R.csv",
+              # "/home/tmpext4/ms255613/memory/dataset/X_dataset_10000R.csv"
+              ]
+    path_Y = ["/home/tmpext4/ms255613/memory/dataset/Y_dataset_10R.csv"
+              # "/home/tmpext4/ms255613/memory/dataset/Y_dataset_1R.csv",
+              # "/home/tmpext4/ms255613/memory/dataset/Y_dataset_10R.csv",
+              # # "/home/tmpext4/ms255613/memory/dataset/Y_dataset_100R.csv",
+              # "/home/tmpext4/ms255613/memory/dataset/Y_dataset_201R.csv",
+              # # "/home/tmpext4/ms255613/memory/dataset/Y_dataset_1000R.csv",
+              # "/home/tmpext4/ms255613/memory/dataset/Y_dataset_10000R.csv"
+              ]
+    # X_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/X_dataset_10000R.csv", sep=',', header=None)
+    # Y_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/Y_dataset_10000R.csv", sep=',', header=None)
+    # X_PE = pd.DataFrame(X_PE)
+    # Y_PE = pd.DataFrame(Y_PE)
+
+
 
     X_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/X_dataset_10000R.csv", sep=',', header=None)
     Y_PE = pd.read_csv("/home/tmpext4/ms255613/memory/dataset/Y_dataset_10000R.csv", sep=',', header=None)
     X_PE = pd.DataFrame(X_PE)
     Y_PE = pd.DataFrame(Y_PE)
 
+    for m in range(1):
 
-    for m in range(3):
 
-        for i in range(0,100):
+        for i in range(0,2000):
 
 
             batch_x, batch_y = mnist.test.next_batch(1)
@@ -294,10 +316,10 @@ with tf.Session() as sess:
 
 
 
-                for k in range (iter_PE[m]):
+                for k in range (1000):
 
                     # print(Y_PE.sample(1))
-                    index = Y_PE.sample(1).index
+                    index = Y_PE.sample(10).index
                     batch_x = np.array(X_PE.iloc[index])#.reshape((1, 784))
                     batch_y = np.array(Y_PE.iloc[index])#.reshape((1, 10))
                     _, _, loss_hetero_, loss_auto_ = sess.run([train_step_hetero_auto_net2,
@@ -353,64 +375,77 @@ with tf.Session() as sess:
 
 
 
-    plt.subplot(221)
-    plt.plot(n_ex_plot_10R[0],  acc_no_9_10R[0], label = "Accuracy test (0-8) N: iter %i" % 1)
-    plt.plot(n_ex_plot_10R[0], acc_9_10R[0], label="Accuracy test 9 N: iter %i" % 1)
-    plt.grid(which='both')
-    major_ticks = np.arange(0, 100, 10)
-    minor_ticks = np.arange(0, 1, 0.1)
-    plt.xticks(major_ticks)
-    plt.yticks(minor_ticks)
-    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
-    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+
+    # plt.subplot(221)
+    plt.plot(n_ex_plot_10R[0],  acc_no_9_10R[0],marker='^', label = "Acc (0-8) ratio 1000:1 ")
+    plt.plot(n_ex_plot_10R[0], acc_9_10R[0],marker='^', label="Acc (9) ratio 1000:1")
+    # plt.plot(n_ex_plot_10R[1],  acc_no_9_10R[1], marker='o', label = "Acc (0-8) ratio 4:1")
+    # plt.plot(n_ex_plot_10R[1], acc_9_10R[1], marker='o', label="Acc (9) ratio 4:1")
+    # plt.plot(n_ex_plot_10R[2],  acc_no_9_10R[2],marker='*', label = "Acc (0-8) ratio 10:1")
+    # plt.plot(n_ex_plot_10R[2], acc_9_10R[2],marker='*', label="Acc (9) ratio 10:1")
+    # plt.plot(n_ex_plot_10R[3],  acc_no_9_10R[3],marker='_', label = "Acc (0-8) ratio 20:1")
+    # plt.plot(n_ex_plot_10R[3], acc_9_10R[3], marker='_',label="Acc (9) ratio ratio 20:1")
+    # plt.plot(n_ex_plot_10R[4], acc_no_9_10R[4], marker='_', label="Acc (0-8) 200 R")
+    # plt.plot(n_ex_plot_10R[5], acc_no_9_10R[5], marker='_', label="Acc (0-8) 1000R")
+    # plt.plot(n_ex_plot_10R[4], acc_no_9_10R[4], marker='_', label="Acc (0-8) 10000R")
+
+
+
+    # plt.grid(which='both')
+    # major_ticks = np.arange(0, 100, 10)
+    # minor_ticks = np.arange(0, 1, 0.1)
+    # plt.xticks(major_ticks)
+    # plt.yticks(minor_ticks)
+    # plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
     plt.xlabel('N° Examples')
     plt.ylabel('Accuracy ')
-    plt.title('1 GD * PE  batch =1 10000R')
+    plt.title(' GD  batch =10 10000R ')
     plt.legend()
 
-    plt.subplot(222)
-    plt.plot(n_ex_plot_10R[1], acc_no_9_10R[1], label="Accuracy test (0-8) N: iter %i" % 1)
-    plt.plot(n_ex_plot_10R[1], acc_9_10R[1], label="Accuracy test 9 N: iter %i" % 1)
-    plt.grid(which='both')
-    major_ticks = np.arange(0, 100, 10)
-    minor_ticks = np.arange(0, 1, 0.1)
-    plt.xticks(major_ticks)
-    plt.yticks(minor_ticks)
-    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
-    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
-    plt.xlabel('N° Examples')
-    plt.ylabel('Accuracy ')
-    plt.title('10 GD * PE  batch =1 10000R')
-    plt.legend()
-
-    plt.subplot(223)
-    plt.plot(n_ex_plot_10R[2], acc_no_9_10R[2], label="Accuracy test (0-8) N: iter %i" % 1)
-    plt.plot(n_ex_plot_10R[2], acc_9_10R[2], label="Accuracy test 9 N: iter %i" % 1)
-    plt.grid(which='both')
-    major_ticks = np.arange(0, 100, 10)
-    minor_ticks = np.arange(0, 1, 0.1)
-    plt.xticks(major_ticks)
-    plt.yticks(minor_ticks)
-    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
-    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
-    plt.xlabel('N° Examples')
-    plt.ylabel('Accuracy ')
-    plt.title('50 GD * PE batch =1 10000R')
-    plt.legend()
-
-    plt.subplot(224)
-    plt.plot(n_ex_plot_10R[3], acc_no_9_10R[3], label="Accuracy test (0-8) N: iter %i" % 1)
-    plt.plot(n_ex_plot_10R[3], acc_9_10R[3], label="Accuracy test 9 N: iter %i" % 1)
-    plt.grid(which='both')
-    major_ticks = np.arange(0, 100, 10)
-    minor_ticks = np.arange(0, 1, 0.1)
-    plt.xticks(major_ticks)
-    plt.yticks(minor_ticks)
-    plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
-    plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
-    plt.xlabel('N° Examples')
-    plt.ylabel('Accuracy ')
-    plt.title('100 GD * PE  batch =1   10000R ')
+    # plt.subplot(222)
+    # plt.plot(n_ex_plot_10R[1], acc_no_9_10R[1], label="Accuracy test (0-8) N: iter %i" % 1)
+    # plt.plot(n_ex_plot_10R[1], acc_9_10R[1], label="Accuracy test 9 N: iter %i" % 1)
+    # plt.grid(which='both')
+    # major_ticks = np.arange(0, 100, 10)
+    # minor_ticks = np.arange(0, 1, 0.1)
+    # plt.xticks(major_ticks)
+    # plt.yticks(minor_ticks)
+    # plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.xlabel('N° Examples')
+    # plt.ylabel('Accuracy ')
+    # plt.title('25 GD * PE  batch =1 10000R')
+    # plt.legend()
+    #
+    # plt.subplot(223)
+    # plt.plot(n_ex_plot_10R[2], acc_no_9_10R[2], label="Accuracy test (0-8) N: iter %i" % 1)
+    # plt.plot(n_ex_plot_10R[2], acc_9_10R[2], label="Accuracy test 9 N: iter %i" % 1)
+    # plt.grid(which='both')
+    # major_ticks = np.arange(0, 100, 10)
+    # minor_ticks = np.arange(0, 1, 0.1)
+    # plt.xticks(major_ticks)
+    # plt.yticks(minor_ticks)
+    # plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.xlabel('N° Examples')
+    # plt.ylabel('Accuracy ')
+    # plt.title('50 GD * PE batch =1 10000R')
+    # plt.legend()
+    #
+    # plt.subplot(224)
+    # plt.plot(n_ex_plot_10R[3], acc_no_9_10R[3], label="Accuracy test (0-8) N: iter %i" % 1)
+    # plt.plot(n_ex_plot_10R[3], acc_9_10R[3], label="Accuracy test 9 N: iter %i" % 1)
+    # plt.grid(which='both')
+    # major_ticks = np.arange(0, 100, 10)
+    # minor_ticks = np.arange(0, 1, 0.1)
+    # plt.xticks(major_ticks)
+    # plt.yticks(minor_ticks)
+    # plt.grid(which='minor', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.grid(which='major', alpha=0.2, color='r', linestyle='-.', linewidth=0.5)
+    # plt.xlabel('N° Examples')
+    # plt.ylabel('Accuracy ')
+    # plt.title('100 GD * PE  batch =1   10000R ')
     plt.legend()
 
 
