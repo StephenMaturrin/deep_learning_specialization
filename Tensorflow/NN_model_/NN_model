@@ -6,16 +6,29 @@ import os
 from tensorflow.python.framework import ops
 import operator
 import keras
-
-from project.generic_functions import  get_logdir
+from ms255613_project import features_manager as fm
+from ms255613_project.generic_functions import  get_logdir
 import os
 from os import listdir
 from os.path import isfile, join
 from matplotlib import pyplot as plt
 from tensorflow.contrib.layers import batch_norm
-from project import constants  as c
+from ms255613_project import constants  as c
+from ms255613_project import data_visualization as dv
+from ms255613_project import normalize_functions as nf
+from ms255613_project import input_builder as ib
+import sklearn.metrics as metrics
 
+from sklearn.metrics import r2_score
 
+from sklearn.metrics import mean_squared_error
+
+__author__ = "Miguel Solinas Jr."
+__credits__ = "Miguel Solinas Jr."
+__version__ = "0.1.1"
+__maintainer__ = "Miguel Solinas Jr."
+__email__ = "migue.solinas@gmail.com"
+__status__ = "Project"
 
 ############################## Description ##############################
 # This object implements not only the train and test step but also the the computational graph and the tensorboard.
@@ -27,7 +40,7 @@ class NN_model():
     #
     # keep_prob = tf.placeholder(tf.float64)
 
-    def __init__(self, dataset, num_epochs,batch_norm, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,optimizer, dropout=None,normalization=None, lambd_L1=None,lambd_L2=None, logdir= "/home/tmpext43/ANN/log"):
+    def __init__(self, dataset, num_epochs,batch_norm, batch_size, model,learning_rate,board_metrics, n_layer,activation_fn,optimizer, dropout=None,normalization=None, lambd_L1=None,lambd_L2=None, logdir= "/home/tmpext4/ms255613/ANN/log"):
 
             tf.reset_default_graph()
             self.dataset= dataset
@@ -111,22 +124,26 @@ class NN_model():
                 pre_activation = tf.add(tf.matmul(input_tensor,weight),bias)
                 tf.summary.histogram("pre_activation",pre_activation)
 
-            if (self.batch_norm and layer_BN):
-
-                with tf.name_scope("batch_normalization"):
-                    pre_activation_batch_norm = tf.layers.batch_normalization(pre_activation, training=self.is_training)
-                    tf.summary.histogram("batch_norm", pre_activation)
-                    pre_activation_l=pre_activation_batch_norm
-            else:
-                pre_activation_l = pre_activation
 
 
             with tf.name_scope("activation"):
-                activation= activation_fn(pre_activation_l)
-                tf.summary.histogram("activation", activation)
-            #
+                activation_l= activation_fn(pre_activation)
+                tf.summary.histogram("activation", activation_l)
+
+
+            if (self.batch_norm and layer_BN):
+                with tf.name_scope("batch_normalization_user"):
+                    activation = tf.layers.batch_normalization(activation_l, training=self.is_training)
+                    tf.summary.histogram("batch_norm", activation)
+                    activation_l = activation
+
+
+            else:
+                activation_l= activation_l
+
+        #
             with tf.name_scope("dropout_activation"):
-                drop_out = tf.nn.dropout(activation, self.keep_prob)  # DROP-OUT here P = 1 -kp
+                drop_out = tf.nn.dropout(activation_l, self.keep_prob)  # DROP-OUT here P = 1 -kp
                 # activation = activation_fn(pre_activation)
                 tf.summary.histogram("drop_out", drop_out)
 
@@ -142,7 +159,7 @@ class NN_model():
                 cross_entropy = tf.losses.sparse_softmax_cross_entropy(labels=self.Y, logits=hypothesis)
                 tf.summary.scalar("cross_entropy", cross_entropy)
             with tf.name_scope("train"):
-                train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate).minimize(cross_entropy)
+                train_step = tf.train.AdamOptimizer(learning_rate=self.learning_rate_dec).minimize(cross_entropy)
                 self.variables_summaries("loss", cross_entropy)
                 return train_step
         if (self.model == "Lin_Reg"):
@@ -211,8 +228,9 @@ class NN_model():
                     correct_prediction = tf.subtract(self.Y,hypothesis)
                     accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction,self.Y)), 100) # Error prediction in %
 
-
-                    accuracy=100 - tf.abs(accuracy)
+                    # a = tf.reduce_mean(tf.equal(self.Y,hypothesis))
+                    accuracy = 100 - tf.abs( accuracy)
+                    accuracy= tf.reduce_mean( correct_prediction)
                     tf.summary.scalar("accuracy", accuracy)
                     return accuracy
 
@@ -260,9 +278,41 @@ class NN_model():
 
         if train:
             xs, ys = self.sess.run(train_iterator)
+
+
             k = self.k_p_dropout
             is_train = True
-            learning_rate_decay =  (1/(1+0.01*epoch)) * self.learning_rate
+
+
+
+
+            if (epoch>3000):
+                learning_rate_decay =  (1/(1+10*epoch)) * self.learning_rate
+
+
+            if (epoch>4000):
+                learning_rate_decay =  (1/(1+100*epoch)) * self.learning_rate
+
+            if (epoch>5000):
+                learning_rate_decay =  (1/(1+200*epoch)) * self.learning_rate
+
+            if (epoch>6000):
+                learning_rate_decay =  (1/(1+1000*epoch)) * self.learning_rate
+
+            if (epoch>7000):
+                learning_rate_decay =  (1/(1+10000*epoch)) * self.learning_rate
+
+            if (epoch > 8000):
+                learning_rate_decay = (1 / (1 + 15000 * epoch)) * self.learning_rate
+
+            if (epoch > 9000):
+                learning_rate_decay = (1 / (1 + 200000 * epoch)) * self.learning_rate
+
+
+            else:
+                learning_rate_decay = learning_rate_decay =  (1/(1+0.01*epoch)) * self.learning_rate
+
+                # print(learning_rate_decay)
 
 
         elif(not all_test):
@@ -284,9 +334,9 @@ class NN_model():
     def train(self,features=c.FEATURES[2:len(c.FEATURES)]):
 
         with tf.Session() as self.sess:
-
-            train_iterator = self.dataset.get_train_dataset(batch_size=self.batch_size, num_epochs=self.steps,features=c.FEATURES[3:]) #features=c.FEATURES[2:len(c.FEATURES)])
-            test_iterator = self.dataset.get_test_dataset(num_epochs=self.steps,features=c.FEATURES[3:]) #features=c.FEATURES[2:len(c.FEATURES)])
+            feature_i = 3
+            train_iterator = self.dataset.get_train_dataset(batch_size=self.batch_size, num_epochs=self.steps,features=c.FEATURES[feature_i:]) # c.feature_roman.FEATURES[3:] #features=c.FEATURES[2:len(c.FEATURES)])
+            test_iterator = self.dataset.get_test_dataset(num_epochs=self.steps,features=c.FEATURES[feature_i:]) #c.feature_roman  #features=c.FEATURES[2:len(c.FEATURES)])
             # for i in range(10):
             #     print(sess.run(train_iterator))
 
@@ -332,8 +382,7 @@ class NN_model():
 
 
             for i in range(self.steps):
-                if i %  1000 ==0:
-
+                if i %  10 ==0:
                     # summary, acc = sess.run([merged,_accuracy],feed_dict=self.feed_dict(False))
                     # train_writer.add_summary(summary, i)
                     # summary, acc,__hypo = sess.run([merged,_accuracy,_hypothesis], feed_dict=self.feed_dict_v2(False,features= features))
@@ -362,11 +411,182 @@ class NN_model():
                     if self.board_metrics: train_writer.add_summary(summary, i)
 
                     #_, __loss= sess.run([_train_step, _loss],feed_dict=self.feed_dict_v2(train_iterator, True))
-                    if i % 999== 0:
+                    if i % 9== 0:
                             print("num_epochs n°:", i, "  LOSS:", np.sqrt(__loss))
 
                         # summary, _ = sess.run([merged, _train_step, ], feed_dict=self.feed_dict( True))
-                        #
+
+
+            #---------------------------------------Delete----------------------------------------->
+
+
+
+            MFLT_F_dataset_original = pd.read_csv(
+                "/home/ms255613/BHAG/BHAG/TESTS/Automatic_tests/ANN/input_data/test2.csv", sep=";",
+                header=2)
+
+            pd.options.display.float_format = '{:.4f}'.format
+            TMFLT_F_dataset = MFLT_F_dataset_original
+            dataset_features_normalized = fm.preprocess_features(TMFLT_F_dataset)
+            dataset_features_normalized_vdd = fm.preprocess_features(TMFLT_F_dataset)
+            dataset_features_normalized = nf.normalize_x_scale(dataset_features_normalized)
+            dataset_dictionary_ordained_by_die = {}
+            dataset_dictionary_ordained_by_die_vdd = {}
+            dataset_dictionary_ordained_by_die_prediction = {}
+            dataset_dictionary_ordained_by_die.update(
+                {die: dataset_features_normalized.loc[dataset_features_normalized['Die'] == int(die)]
+                 for die in c.DIES})
+            dataset_dictionary_ordained_by_die_vdd.update(
+                {die: dataset_features_normalized_vdd.loc[
+                    dataset_features_normalized_vdd['Die'] == int(die)] for die in c.DIES})
+
+            for die in c.DIES:
+                Vdd = np.array(dataset_dictionary_ordained_by_die_vdd[die]["Vdd"])
+                features_test = dataset_dictionary_ordained_by_die[die][
+                    c.FEATURES[feature_i:len(c.FEATURES)]]  # c.FEATURES[2:len(c.FEATURES)]
+                target_test = dataset_dictionary_ordained_by_die[die][c.TARGET]
+                fmax = np.array(dataset_dictionary_ordained_by_die[die][c.TARGET])
+
+                test_iterator = ib.my_input_fn_v2(features_test,target_test,
+                                                                       num_epochs=None,
+                                                                       batch_size=target_test.shape[0],
+                                                                       shuffle=False)
+
+                by_die_predictions = self.sess.run(_hypothesis,feed_dict=self.feed_dict_v3(test_iterator, False))
+
+
+                # input_test_by_die = ib.my_input_fn_v2(features_test, target_test["Fmax"], num_epochs=1,
+                #                                       shuffle=False,
+                #                                       batch_size=target_test.shape[0])
+                # # print("Die ", die, " target_test",target_test)
+                # by_die_predictions = model.predict(input_fn=input_test_by_die, path=path, pruning=False,
+                #                                    treshold=41, treshold_show=0.005)
+
+                # print(type(by_die_predictions))
+                tmp_p = by_die_predictions
+                Error = np.subtract(fmax, tmp_p)
+                Error = np.divide(Error, fmax) * 100
+
+                # print(type(Error),Error.shape)
+                dataset_dictionary_ordained_by_die_prediction.update(
+                    {die: {"Vdd": Vdd, "Error": Error}})
+
+            dv.plot_error_curves_by_die(dataset_dictionary_ordained_by_die_prediction)
+            dataset_dictionary_error_by_vdd = {}
+            treatments = []
+            fig, ax = plt.subplots()
+            ax.set_axisbelow(True)
+            a = [str(i) for i in list(np.sort(dataset_features_normalized.Vdd.unique()))]
+            # plt.show()
+            ax.set_title('Box plot of the Error')
+            ax.set_xlabel('Voltage (V)')
+            ax.set_ylabel('Error (%)')
+
+            for vdd in np.sort(dataset_features_normalized.Vdd.unique()):
+                data = dataset_features_normalized.loc[dataset_features_normalized['Vdd'] == int(vdd)]
+
+                X = data[c.FEATURES[feature_i:len(c.FEATURES)]]
+                # fmax = np.array(data[c.TARGET])
+                fmax = data[c.TARGET]
+
+                # input_test_by_die = ib.my_input_fn_v2(X, fmax, num_epochs=1, shuffle=False,
+                #                                       batch_size=target_test.shape[0])
+                #
+                # by_die_predictions = model.predict(input_fn=input_test_by_die, path=path, pruning=False, treshold=41,
+                #                                    treshold_show=0.005)
+
+                test_iterator = ib.my_input_fn_v2(X, fmax,
+                                                  num_epochs=None,
+                                                  batch_size=X.shape[0],
+                                                  shuffle=False)
+
+                by_die_predictions = self.sess.run(_hypothesis, feed_dict=self.feed_dict_v3(test_iterator, False))
+
+
+
+                tmp_p = by_die_predictions
+                # fmax = np.concatenate(fmax, axis=0)
+
+                tmp_p = tmp_p.reshape(tmp_p.shape[0], 1)
+                # print(fmax.shape,tmp_p.shape)
+                # print(type(fmax),type(tmp_p))
+                Error = np.subtract(fmax, tmp_p)
+
+                Error = np.abs(np.divide(Error, fmax) * 100)
+
+                dataset_dictionary_error_by_vdd.update({vdd: Error})
+                treatments.append(Error)
+
+            pos = np.array(range(len(treatments))) + 5
+            bp = ax.boxplot(treatments, sym='k+')
+            xtickNames = plt.setp(ax, xticklabels=np.repeat(a, 2))
+            plt.setp(xtickNames, rotation=75, fontsize=8)
+
+            plt.show()
+
+            dataset_features_normalized = fm.preprocess_features(TMFLT_F_dataset)
+            dataset_features_normalized_vdd = fm.preprocess_features(TMFLT_F_dataset)
+            dataset_features_normalized = nf.normalize_x_scale(dataset_features_normalized)
+
+            data = dataset_features_normalized
+
+            X = data[c.FEATURES[feature_i:len(c.FEATURES)]]
+            # fmax = np.array(data[c.TARGET])
+            fmax = data[c.TARGET]
+
+
+            test_iterator = ib.my_input_fn_v2(X, fmax,
+                                              num_epochs=None,
+                                              batch_size=X.shape[0],
+                                              shuffle=False)
+
+            validation_predictions= self.sess.run(_hypothesis, feed_dict=self.feed_dict_v3(test_iterator, False))
+
+            validation_predictions = validation_predictions.reshape(validation_predictions.shape[0], 1)
+
+            mse = mean_squared_error(validation_predictions, fmax)
+            print("Total MSE: %.4f" % mse)
+
+            r2 = metrics.r2_score(fmax, validation_predictions)
+            print("Total r2: %.4f" % r2)
+
+            # mse = mean_squared_error(y_test.values, clf.predict(X_test.values))
+
+            # print(validation_targets)
+            # print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
+            # print(validation_predictions)
+            # print("validation_targets", type(validation_targets), "validation_predictions", type(validation_predictions))
+
+            rse = np.sqrt(((fmax.values - validation_predictions) ** 2).sum()) / (13 - 2)
+            sst = ((fmax.values - np.average(fmax.values)) ** 2).sum()
+            sse = ((fmax.values - validation_predictions) ** 2).sum()
+            r2 = metrics.r2_score(fmax.values, validation_predictions)
+
+            # acc_train =metrics.accuracy_score(training_targets["Fmax"].values, training_predictions)
+            # print("Accurracy training", acc_train)
+            # acc_validation= metrics.accuracy_score(validation_predictions, validation_targets["Fmax"].values)
+            # print("Accurracy validation", acc_validation)
+
+
+            print("Total MSE: %.4f" % mse)
+
+            print("Total rse: %.4f" % rse)
+            print("Total sst: %.4f" % sst)
+            print("Total sse: %.4f" % sse)
+            print("Total R2: %.4f" % r2)
+
+
+
+
+
+
+
+
+
+
+            #---------------------------------------------------------------------------------------->
+
+                            #
 
             if self.board_metrics:
                 self.f.write("Loss :" + str(np.sqrt(__loss))+"\n")
@@ -377,20 +597,63 @@ class NN_model():
                 if not os.path.exists(outdir):
                     os.mkdir(outdir)
 
+                with self.sess.as_default():
+                    print("ENTRE")
+
+                    # variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+                    # values = {}
+                    # print(variables)
+                    # for variable in variables:
+                    #     values[variable.name[:-2]] = self.sess.run([variable],
+                    #                                                feed_dict=self.feed_dict_v3(test_iterator,
+                    #                                                                            False))
+                    #
+                    #     print(values[variable.name[:-2]])
 
 
+
+                values = {}
                 for index, value in enumerate(self.n_layer):
                     if index == len(self.n_layer)-1:
                         break
-                    weight = layers[index+1]["weight"]
-                    bias = layers[index+1]["bias"]
-                    __weight,__bias = self.sess.run([weight,bias],feed_dict=self.feed_dict_v3(test_iterator, False))
+                    #
+                    # if (False):
+                    #     moving_mean= values["batch_normalization/moving_mean"]
+                    #     moving_variance= values["batch_normalization/moving_variance"]
+                    #     gamma = values["batch_normalization/gamma"]
+                    #     beta = values["batch_normalization/beta"]
+                    #
+                    #
+                    #     print(moving_mean)
+                    #     print(moving_variance)
+                    #     print(gamma)
+                    #     print(beta)
+
+
+                    #     moving_mean = pd.DataFrame(data=moving_mean.astype(float))
+                    #     moving_variance = pd.DataFrame(data=moving_variance.astype(float))
+                    #     gamma = pd.DataFrame(data=gamma.astype(float))
+                    #     beta = pd.DataFrame(data=beta.astype(float))
+                    #
+                    #     moving_mean.to_csv(os.path.join(outdir, 'moving_mean' + str(index + 1) + '.csv'), sep=';', header=False,
+                    #              float_format='%.4f', index=False)
+                    #     moving_variance.to_csv(os.path.join(outdir, 'moving_variance' + str(index + 1) + '.csv'), sep=';', header=False,
+                    #              float_format='%.4f', index=False)
+                    #     gamma.to_csv(os.path.join(outdir, 'gamma' + str(index + 1) + '.csv'), sep=';', header=False,
+                    #              float_format='%.4f', index=False)
+                    #     beta.to_csv(os.path.join(outdir, 'beta' + str(index + 1) + '.csv'), sep=';', header=False,
+                    #              float_format='%.4f', index=False)
+                    #
+                    weight = layers[index + 1]["weight"]
+                    bias = layers[index + 1]["bias"]
+                    __weight, __bias = self.sess.run([weight, bias], feed_dict=self.feed_dict_v3(test_iterator, False))
                     # __weight, __bias = sess.run([weight, bias], feed_dict=self.feed_dict( False))
                     w = pd.DataFrame(data=__weight.astype(float))
-                    w.to_csv(os.path.join(outdir, 'w'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
+                    w.to_csv(os.path.join(outdir, 'w' + str(index + 1) + '.csv'), sep=';', header=False,
+                             float_format='%.4f', index=False)
                     b = pd.DataFrame(data=__bias.astype(float))
-                    b.to_csv(os.path.join(outdir, 'b'+str(index+1)+'.csv'), sep=';', header=False, float_format='%.4f', index=False)
-
+                    b.to_csv(os.path.join(outdir, 'b' + str(index + 1) + '.csv'), sep=';', header=False,
+                             float_format='%.4f', index=False)
 
             if self.board_metrics:
                 train_writer.close()
@@ -398,24 +661,54 @@ class NN_model():
                 print("tensorboard --logdir=%s --port=  " % self.logdir)
 
         #
-        # with self.sess.as_default():
-        #     print("ENTRE")
-        #
-        #     variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-        #     values = {}
-        #     for variable in variables:
-        #         print(variable)
+            # with self.sess.as_default():
+            #     print("ENTRE")
+            #
+            #     variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+            #     values = {}
+            #     for variable in variables:
+            #         values[variable.name[:-2]] =  self.sess.run([variable],feed_dict=self.feed_dict_v3(test_iterator, False))
+            #         print(variable)
+            #     print("################################################")
+            #     print('moving mean layer 1 is:')
+            #     print(values["batch_normalization/moving_mean"])
+            #     print("################################################")
+            #     print('moving mean layer 1 is:')
+            #     print(values["batch_normalization/moving_variance"])
+            #
+            #     print("################################################")
+            #     print('gamma 1:')
+            #     print(values["batch_normalization/gamma/Adam"])
+            #     print(values["batch_normalization/gamma/Adam_1"])
+            #     print(values["batch_normalization/gamma"])
+            #     print("################################################")
+            #     print('beta 1:')
+            #     print(values["batch_normalization/beta/Adam"])
+            #     print(values["batch_normalization/beta/Adam_1"])
+            #     print(values["batch_normalization/beta"])
+            #     print("################################################")
 
+        # <tf.Variable 'batch_normalization_2/beta/Adam_1:0' shape=(36,) dtype=float64_ref>
         self.sess.close()
         return acc ,np.sqrt(__loss)
 
     def test(self,dataset,path): # use W and B from train
 
+
+
         self.sess = tf.InteractiveSession()
         sess =self.sess
         self.dataset = dataset
 
+        test_iterator = self.dataset.get_test_dataset(num_epochs=1,features=c.FEATURES[2:len(c.FEATURES)])#features=c.FEATURES[2:len(c.FEATURES)]
+        # test_iterator = self.dataset.get_all_dataset(c.feature_roman)
+        # train_iterator = self.dataset.get_train_dataset(batch_size=self.batch_size, num_epochs=self.steps,
+        #                                                 features=c.feature_roman)
+        # test_iterator = self.dataset.get_train_dataset(batch_size=self.dataset.training_examples.shape[0], num_epochs=1,features=c.feature_roman)
+
         layers = os.listdir(path)
+
+
 
 
         activations = []
@@ -435,7 +728,7 @@ class NN_model():
                 pre_activation = tf.add(tf.matmul(activations[-1], w_tf), b_tf)
                 activations.append(self.activation_fn(pre_activation))
 
-        all_iterator = self.dataset.get_all_dataset()
+        # all_iterator = self.dataset.get_all_dataset()
 
 
         tf.global_variables_initializer().run()
@@ -443,10 +736,20 @@ class NN_model():
 
         if (self.model == "Lin_Reg"):
 
-            correct_prediction  = tf.subtract(self.Y, activations[-1])
-            accur = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, self.Y)), 100)  # Error prediction in %
 
-            _acc, _Y,_h = sess.run([accur,self.Y,activations[-1]], self.feed_dict_v2(train=False,all_test=False))
+            # accur = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, self.Y)), 100)  # Error prediction in %
+            # accur = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction, self.Y)), 100)  # Error prediction in %
+
+
+            correct_prediction = tf.subtract(self.Y, activations[-1])
+            # accuracy = tf.multiply(tf.reduce_mean(tf.truediv(correct_prediction,self.Y)), 100) # Error prediction in %
+
+            # a = tf.reduce_mean(tf.equal(self.Y,hypothesis))
+            accur = 100 - tf.abs(tf.reduce_mean(correct_prediction))
+
+
+            # _acc, _Y,_h = sess.run([accur,self.Y,activations[-1]], self.feed_dict_v2(train=False,all_test=False))
+            _acc, _Y, _h =sess.run([accur,self.Y,activations[-1]], feed_dict=self.feed_dict_v3(test_iterator, False))
 
             major_ticks = np.arange(min(_Y), max(_Y), 50)
             minor_ticks = np.arange((min(_Y)), max(_Y), 150)
@@ -479,6 +782,8 @@ class NN_model():
             accur = tf.reduce_mean(prediction_cast)
 
             print(sess.run([accur], self.feed_dict_v2(train=False,all_test=False)))
+
+            print(self.sess.run([accur],feed_dict=self.feed_dict_v3(test_iterator,False)))
 
 
 
@@ -581,3 +886,58 @@ class NN_model():
 #             print(values["conv1_bn/beta/Adam"])
 #             summary, acc = sess.run([merged,accuracy], feed_dict={
 #                 x:mnist.test.images, y_:mnist.test.labels, is_training:False
+
+
+#BN https://stackoverflow.com/questions/33949786/how-could-i-use-batch-normalization-in-tensorflow?answertab=votes#tab-top
+
+
+# <tf.Variable 'W_layer_1:0' shape=(12, 36) dtype=float64_ref>
+# <tf.Variable 'layer_1/bias/bias:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'batch_normalization/gamma:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization/beta:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization/moving_mean:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization/moving_variance:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'W_layer_2:0' shape=(36, 36) dtype=float64_ref>
+# <tf.Variable 'layer_2/bias/bias:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'batch_normalization_1/gamma:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_1/beta:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_1/moving_mean:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_1/moving_variance:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'W_layer_3:0' shape=(36, 36) dtype=float64_ref>
+# <tf.Variable 'layer_3/bias/bias:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'batch_normalization_2/gamma:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_2/beta:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_2/moving_mean:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_2/moving_variance:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'W_layer_4:0' shape=(36, 1) dtype=float64_ref>
+# <tf.Variable 'layer_4/bias/bias:0' shape=(1, 1) dtype=float32_ref>
+# <tf.Variable 'train/beta1_power:0' shape=() dtype=float32_ref>
+# <tf.Variable 'train/beta2_power:0' shape=() dtype=float32_ref>
+# <tf.Variable 'W_layer_1/Adam:0' shape=(12, 36) dtype=float64_ref>
+# <tf.Variable 'W_layer_1/Adam_1:0' shape=(12, 36) dtype=float64_ref>
+# <tf.Variable 'layer_1/bias/bias/Adam:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'layer_1/bias/bias/Adam_1:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'batch_normalization/gamma/Adam:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization/gamma/Adam_1:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization/beta/Adam:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization/beta/Adam_1:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'W_layer_2/Adam:0' shape=(36, 36) dtype=float64_ref>
+# <tf.Variable 'W_layer_2/Adam_1:0' shape=(36, 36) dtype=float64_ref>
+# <tf.Variable 'layer_2/bias/bias/Adam:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'layer_2/bias/bias/Adam_1:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'batch_normalization_1/gamma/Adam:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_1/gamma/Adam_1:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_1/beta/Adam:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_1/beta/Adam_1:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'W_layer_3/Adam:0' shape=(36, 36) dtype=float64_ref>
+# <tf.Variable 'W_layer_3/Adam_1:0' shape=(36, 36) dtype=float64_ref>
+# <tf.Variable 'layer_3/bias/bias/Adam:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'layer_3/bias/bias/Adam_1:0' shape=(1, 36) dtype=float32_ref>
+# <tf.Variable 'batch_normalization_2/gamma/Adam:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_2/gamma/Adam_1:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_2/beta/Adam:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'batch_normalization_2/beta/Adam_1:0' shape=(36,) dtype=float64_ref>
+# <tf.Variable 'W_layer_4/Adam:0' shape=(36, 1) dtype=float64_ref>
+# <tf.Variable 'W_layer_4/Adam_1:0' shape=(36, 1) dtype=float64_ref>
+# <tf.Variable 'layer_4/bias/bias/Adam:0' shape=(1, 1) dtype=float32_ref>
+# <tf.Variable 'layer_4/bias/bias/Adam_1:0' shape=(1, 1) dtype=float32_ref>
